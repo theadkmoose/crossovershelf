@@ -3,7 +3,7 @@
 // stale-while-revalidate for Google Fonts and book cover images (so offline
 // still shows whatever was already loaded, while quietly refreshing online).
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 
