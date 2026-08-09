@@ -1,10 +1,9 @@
 // Crossover Shelf — service worker
-// Strategy: cache-first for the app shell (works fully offline once visited),
-// stale-while-revalidate for Google Fonts and book cover images (so offline
-// still shows whatever was already loaded, while quietly refreshing online).
-// The app shell also injects the optional browser-only AI recommendation module.
+// Strategy: cache-first for the app shell, stale-while-revalidate for
+// fonts and Open Library assets. The AI module is injected into index.html
+// so the large single-file application does not need to be rewritten.
 
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4-ai";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 const AI_SCRIPT = "./ai-recommendations.js";
@@ -32,8 +31,8 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== SHELL_CACHE && k !== RUNTIME_CACHE)
-          .map((k) => caches.delete(k))
+          .filter((key) => key !== SHELL_CACHE && key !== RUNTIME_CACHE)
+          .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
   );
@@ -56,12 +55,16 @@ async function injectAiModule(response) {
   const html = await response.clone().text();
   if (html.includes(AI_SCRIPT)) return response;
 
-  const injected = html.replace(/<\/body>/i, `<script src="${AI_SCRIPT}"></script></body>`);
+  const injected = html.replace(
+    /<\/body>/i,
+    `<script src="${AI_SCRIPT}"></script></body>`
+  );
   if (injected === html) return response;
 
   const headers = new Headers(response.headers);
   headers.set("content-type", "text/html; charset=utf-8");
   headers.delete("content-length");
+
   return new Response(injected, {
     status: response.status,
     statusText: response.statusText,
@@ -75,35 +78,40 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
 
-  // App shell: cache-first, so the app opens instantly and works offline.
-  // index.html is transformed at response time so the optional AI module can
-  // be added without modifying the large single-file application itself.
   if (url.origin === self.location.origin) {
-    const isAppDocument = url.pathname.endsWith("/index.html") || url.pathname.endsWith("/");
+    const isAppDocument =
+      url.pathname.endsWith("/index.html") ||
+      url.pathname.endsWith("/");
+
     event.respondWith(
       caches.match(req).then(async (cached) => {
-        if (cached) return isAppDocument ? injectAiModule(cached) : cached;
-        return fetch(req)
-          .then(async (res) => {
-            const copy = res.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put(req, copy));
-            return isAppDocument ? injectAiModule(res) : res;
-          })
-          .catch(() => caches.match("./index.html").then((fallback) => isAppDocument ? injectAiModule(fallback) : fallback));
+        if (cached) {
+          return isAppDocument ? injectAiModule(cached) : cached;
+        }
+
+        try {
+          const response = await fetch(req);
+          const copy = response.clone();
+          const cache = await caches.open(SHELL_CACHE);
+          await cache.put(req, copy);
+          return isAppDocument ? injectAiModule(response) : response;
+        } catch (_) {
+          const fallback = await caches.match("./index.html");
+          return isAppDocument ? injectAiModule(fallback) : fallback;
+        }
       })
     );
     return;
   }
 
-  // Fonts + cover images: stale-while-revalidate.
   if (isRuntimeCacheable(url)) {
     event.respondWith(
       caches.open(RUNTIME_CACHE).then((cache) =>
         cache.match(req).then((cached) => {
           const fetchPromise = fetch(req)
-            .then((res) => {
-              if (res.ok) cache.put(req, res.clone());
-              return res;
+            .then((response) => {
+              if (response.ok) cache.put(req, response.clone());
+              return response;
             })
             .catch(() => cached);
           return cached || fetchPromise;
