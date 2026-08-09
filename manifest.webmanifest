@@ -1,0 +1,16 @@
+{
+  "name": "The Crossover Shelf",
+  "short_name": "Crossover Shelf",
+  "description": "A personal tracker for award-crossover fiction, Stephen King, and r/Fantasy favorites.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#12151d",
+  "theme_color": "#12151d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
