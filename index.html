@@ -123,6 +123,34 @@ input,select,textarea{font-family:inherit; font-size:16px;}
   *{animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important;}
 }
 
+/* ---------- backup reminder banner ---------- */
+.backup-reminder{
+  display:none;
+  align-items:center; gap:12px;
+  max-width:1180px; margin:14px auto 0; padding:12px 16px;
+  background:var(--brass-glow); border:1px solid var(--brass); border-radius:var(--radius);
+  font-size:.85rem; color:var(--text);
+}
+.backup-reminder.show{display:flex;}
+.backup-reminder .br-icon{font-size:1.1rem; flex:none;}
+.backup-reminder .br-text{flex:1; line-height:1.4;}
+.backup-reminder .br-text strong{color:var(--brass);}
+.backup-reminder .br-actions{display:flex; gap:8px; flex:none;}
+.backup-reminder .br-export{
+  background:var(--brass); color:var(--ink); border:none; border-radius:var(--radius-sm);
+  padding:7px 12px; font-size:.8rem; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.backup-reminder .br-export:hover{opacity:.88;}
+.backup-reminder .br-dismiss{
+  background:transparent; color:var(--text-dim); border:1px solid var(--ink-line); border-radius:var(--radius-sm);
+  padding:7px 10px; font-size:.8rem; cursor:pointer; white-space:nowrap;
+}
+.backup-reminder .br-dismiss:hover{color:var(--text); border-color:var(--brass);}
+@media(max-width:640px){
+  .backup-reminder{flex-wrap:wrap; margin:12px 12px 0;}
+  .backup-reminder .br-actions{width:100%; justify-content:flex-end;}
+}
+
 /* ---------- layout shell ---------- */
 .wrap{max-width:1280px; margin:0 auto; padding:0 28px;}
 @media(max-width:640px){.wrap{padding:0 16px;}}
@@ -575,6 +603,15 @@ footer{border-top:1px solid var(--ink-line); padding:26px 0 40px; color:var(--te
 </header>
 
 <div class="wrap">
+
+  <div class="backup-reminder" id="backupReminder">
+    <span class="br-icon">💾</span>
+    <span class="br-text" id="backupReminderText"></span>
+    <div class="br-actions">
+      <button class="br-export" id="backupReminderExport">Export now</button>
+      <button class="br-dismiss" id="backupReminderDismiss">Remind me later</button>
+    </div>
+  </div>
 
   <section class="hero">
     <div class="hero-stats">
@@ -1335,6 +1372,9 @@ const state = {
 const STATUS_KEY = "crossover-shelf-status-v1";
 const THEME_KEY = "crossover-shelf-theme-v1";
 const META_KEY = "crossover-shelf-book-meta-v1";
+const LAST_EXPORT_KEY = "crossover-shelf-last-export-v1";
+const FIRST_USE_KEY = "crossover-shelf-first-use-v1";
+const REMINDER_SNOOZE_KEY = "crossover-shelf-reminder-snoozed-v1";
 let readingStatus = {};
 let bookMeta = {};
 try{ readingStatus = JSON.parse(localStorage.getItem(STATUS_KEY) || "{}"); }catch(e){ readingStatus = {}; }
@@ -2147,6 +2187,8 @@ document.getElementById("backup-export").addEventListener("click", ()=>{
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString());
+  hideBackupReminder();
 });
 
 document.getElementById("backup-import").addEventListener("click", ()=>{
@@ -2204,6 +2246,56 @@ document.getElementById("themeToggle").addEventListener("click", ()=>{
 });
 applyTheme(localStorage.getItem(THEME_KEY) || "dark");
 
+/* ================= BACKUP REMINDER ================= */
+const REMINDER_INTERVAL_DAYS = 30;
+const REMINDER_SNOOZE_DAYS = 7;
+
+function daysSince(isoString){
+  const then = new Date(isoString).getTime();
+  if(isNaN(then)) return Infinity;
+  return (Date.now() - then) / 86400000;
+}
+
+function hasTrackedData(){
+  return Object.keys(readingStatus||{}).length > 0
+    || Object.keys(bookMeta||{}).length > 0
+    || (customBooks||[]).length > 0
+    || Object.keys(overrides||{}).length > 0;
+}
+
+function hideBackupReminder(){
+  document.getElementById("backupReminder").classList.remove("show");
+}
+
+function checkBackupReminder(){
+  if(!localStorage.getItem(FIRST_USE_KEY)){
+    localStorage.setItem(FIRST_USE_KEY, new Date().toISOString());
+  }
+  if(!hasTrackedData()) return; // nothing worth losing yet
+
+  const lastExport = localStorage.getItem(LAST_EXPORT_KEY);
+  const referenceDate = lastExport || localStorage.getItem(FIRST_USE_KEY);
+  const dueForReminder = daysSince(referenceDate) >= REMINDER_INTERVAL_DAYS;
+  if(!dueForReminder) return;
+
+  const snoozedAt = localStorage.getItem(REMINDER_SNOOZE_KEY);
+  if(snoozedAt && daysSince(snoozedAt) < REMINDER_SNOOZE_DAYS) return;
+
+  const msg = lastExport
+    ? `It's been over a month since your last backup. Export your data to keep it safe.`
+    : `You've got reading data building up here with no backup on file yet. Export a copy to keep it safe.`;
+  document.getElementById("backupReminderText").textContent = msg;
+  document.getElementById("backupReminder").classList.add("show");
+}
+
+document.getElementById("backupReminderExport").addEventListener("click", ()=>{
+  document.getElementById("backup-export").click();
+});
+document.getElementById("backupReminderDismiss").addEventListener("click", ()=>{
+  localStorage.setItem(REMINDER_SNOOZE_KEY, new Date().toISOString());
+  hideBackupReminder();
+});
+
 /* ================= INIT ================= */
 function populateHeroStats(){
   document.getElementById("heroTotal").textContent = BOOKS.length;
@@ -2213,6 +2305,7 @@ function populateHeroStats(){
 populateHeroStats();
 buildFilterPanel();
 render();
+checkBackupReminder();
 
 /* ================= PWA: SERVICE WORKER ================= */
 if ("serviceWorker" in navigator) {
