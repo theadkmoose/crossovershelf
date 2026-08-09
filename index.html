@@ -736,6 +736,7 @@ footer{border-top:1px solid var(--ink-line); padding:26px 0 40px; color:var(--te
 
     <div class="kpi-row">
       <div class="kpi"><div class="n mono" id="kpiTotal">0</div><div class="l">Books in view</div></div>
+      <div class="kpi"><div class="n mono" id="kpiRead">0</div><div class="l">Books read</div></div>
       <div class="kpi"><div class="n mono" id="kpiRating">0</div><div class="l">Avg. rating</div></div>
       <div class="kpi"><div class="n mono" id="kpiScore">0</div><div class="l">Avg. score /100</div></div>
       <div class="kpi"><div class="n mono" id="kpiAuthors">0</div><div class="l">Unique authors</div></div>
@@ -743,6 +744,12 @@ footer{border-top:1px solid var(--ink-line); padding:26px 0 40px; color:var(--te
     </div>
 
     <div class="dash-grid">
+      <div class="dash-card wide">
+        <h3>Reading progress</h3>
+        <div class="sub">Read vs. want to read vs. unread, by shelf</div>
+        <div class="chart-box"><canvas id="chartProgress"></canvas></div>
+        <div class="chart-insight" id="insightProgress"></div>
+      </div>
       <div class="dash-card">
         <h3>Tier distribution</h3>
         <div class="sub">How many books land in each S–F band</div>
@@ -1640,7 +1647,9 @@ function renderDashboard(){
   const avgScore = list.length? list.reduce((s,b)=>s+b.score,0)/list.length : 0;
   const authors = new Set(list.map(b=>b.author));
   const sTier = list.filter(b=>b.tier==="S").length;
+  const readCount = list.filter(b=>(readingStatus[b.id]||"unread")==="read").length;
   document.getElementById("kpiTotal").textContent = list.length;
+  document.getElementById("kpiRead").textContent = readCount;
   document.getElementById("kpiRating").textContent = fmt1(avgRating);
   document.getElementById("kpiScore").textContent = Math.round(avgScore);
   document.getElementById("kpiAuthors").textContent = authors.size;
@@ -1665,6 +1674,42 @@ function renderDashboard(){
 
   const shelves = state.dashScope==="all" ? ["crossover","king","rfantasy"] : [state.dashScope];
   const shelfColors = shelves.map(s=>cssVar(SHELF_COLOR_VAR[s]));
+
+  /* --- Reading progress --- */
+  const STATUS_ORDER = ["read","want","unread"];
+  const STATUS_LABEL = {read:"Read", want:"Want to read", unread:"Unread"};
+  const STATUS_COLOR = {read:cssVar("--moss"), want:cssVar("--brass"), unread:cssVar("--ink-line")};
+  const progressData = shelves.map(s=>{
+    const sub = list.filter(b=>b.tab===s);
+    return STATUS_ORDER.map(st=>sub.filter(b=>(readingStatus[b.id]||"unread")===st).length);
+  });
+  charts.progress = new Chart(document.getElementById("chartProgress"), {
+    type:"bar",
+    data:{
+      labels: shelves.map(s=>SHELF_LABEL[s]),
+      datasets: STATUS_ORDER.map((st,i)=>({
+        label: STATUS_LABEL[st],
+        data: progressData.map(row=>row[i]),
+        backgroundColor: STATUS_COLOR[st],
+        borderRadius:4,
+        maxBarThickness:46,
+      })),
+    },
+    options:{
+      indexAxis:"y",
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:true, position:"bottom", labels:{boxWidth:10, padding:14}}},
+      scales:{
+        x:{stacked:true, beginAtZero:true, grid:{color:gridColor}, ticks:{precision:0}},
+        y:{stacked:true, grid:{display:false}},
+      }
+    }
+  });
+  {
+    const readPct = list.length ? Math.round(100*readCount/list.length) : 0;
+    const wantCount = list.filter(b=>(readingStatus[b.id]||"unread")==="want").length;
+    setInsight("insightProgress", `You've read <strong>${readCount} of ${list.length}</strong> books in this view (${readPct}%), with ${wantCount} on your want-to-read list.`);
+  }
 
   /* --- Tier distribution --- */
   const tierData = shelves.map(s=>{
