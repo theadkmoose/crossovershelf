@@ -1,45 +1,31 @@
-// Crossover Shelf — stable service worker
-// Temporarily keep the core application on a clean loading path while the My Reading UI is rebuilt.
-const CACHE_VERSION = "v15-core-stable";
+// Crossover Shelf — stable core + unified My Reading
+const CACHE_VERSION = "v16-unified-reading";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
-const CORE_ASSETS = ["./","./index.html","./manifest.webmanifest","./icon-180.png","./icon-192.png","./icon-512.png"];
+const MY_READING = "./my-reading.js";
+const CORE_ASSETS = ["./","./index.html",MY_READING,"./manifest.webmanifest","./icon-180.png","./icon-192.png","./icon-512.png"];
 self.addEventListener("install", event => event.waitUntil(
   caches.open(SHELL_CACHE).then(c => c.addAll(CORE_ASSETS)).then(() => self.skipWaiting())
 ));
 self.addEventListener("activate", event => event.waitUntil(
-  caches.keys().then(keys => Promise.all(
-    keys.filter(k => k.startsWith("crossover-shelf-") && k !== SHELL_CACHE && k !== RUNTIME_CACHE).map(k => caches.delete(k))
-  )).then(() => self.clients.claim())
+  caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith("crossover-shelf-") && k !== SHELL_CACHE && k !== RUNTIME_CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())
 ));
-function runtime(url){
-  return url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com" ||
-    url.hostname === "covers.openlibrary.org" || url.hostname === "openlibrary.org";
+function runtime(url){return url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com" || url.hostname === "covers.openlibrary.org" || url.hostname === "openlibrary.org";}
+async function injectMyReading(response){
+  if(!response || !response.ok) return response;
+  const type=response.headers.get("content-type")||""; if(!type.includes("text/html")) return response;
+  const html=await response.clone().text();
+  if(html.includes("<!-- crossover-shelf-my-reading-v16 -->")) return response;
+  const injected=html.replace(/<\/body>/i, `<!-- crossover-shelf-my-reading-v16 --><script>try{window.CrossoverShelfBooks=BOOKS}catch(e){}</script><script src="${MY_READING}"></script></body>`);
+  const headers=new Headers(response.headers); headers.set("content-type","text/html; charset=utf-8"); headers.delete("content-length");
+  return new Response(injected,{status:response.status,statusText:response.statusText,headers});
 }
 self.addEventListener("fetch", event => {
-  const req = event.request;
-  if(req.method !== "GET") return;
-  const url = new URL(req.url);
-  if(url.origin === self.location.origin){
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(req, {cache:"no-store"});
-        if(fresh.ok) return fresh;
-      } catch(_) {}
-      return (await caches.match(req)) || (await caches.match("./index.html"));
-    })());
+  const req=event.request; if(req.method!=="GET") return; const url=new URL(req.url);
+  if(url.origin===self.location.origin){
+    const doc=url.pathname.endsWith("/")||url.pathname.endsWith("/index.html");
+    event.respondWith((async()=>{try{const fresh=await fetch(req,{cache:"no-store"});if(fresh.ok)return doc?injectMyReading(fresh):fresh}catch(_){}const cached=await caches.match(req);if(cached)return doc?injectMyReading(cached):cached;const fallback=await caches.match("./index.html");return doc?injectMyReading(fallback):fallback})());
     return;
   }
-  if(runtime(url)){
-    event.respondWith((async () => {
-      const cache = await caches.open(RUNTIME_CACHE);
-      try {
-        const fresh = await fetch(req);
-        if(fresh.ok) cache.put(req, fresh.clone());
-        return fresh;
-      } catch(_) {
-        return await cache.match(req);
-      }
-    })());
-  }
+  if(runtime(url)) event.respondWith((async()=>{const cache=await caches.open(RUNTIME_CACHE);try{const fresh=await fetch(req);if(fresh.ok)cache.put(req,fresh.clone());return fresh}catch(_){return cache.match(req)}})());
 });
