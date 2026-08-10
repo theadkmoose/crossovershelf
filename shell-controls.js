@@ -3,6 +3,19 @@
   "use strict";
   function boot(){
     if(document.getElementById("cs-menu-button")) return;
+
+    /* Ensure the live book-detail rating bridge is actually present on the deployed app.
+       The rating UI is intentionally loaded once from its own file so the main app's
+       modal renderer remains untouched. */
+    if(!window.__CrossoverShelfRatingBridgeLoaded){
+      window.__CrossoverShelfRatingBridgeLoaded=true;
+      const s=document.createElement("script");
+      s.src="reading-global-sync.js?v=rating-20260810";
+      s.async=false;
+      s.onload=()=>{ try{ window.dispatchEvent(new Event("crossoverShelfRatingBridgeLoaded")); }catch(_){} };
+      document.head.appendChild(s);
+    }
+
     const style=document.createElement("style");style.id="cs-menu-style";style.textContent=`
       #cs-menu-button{position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:12000;width:44px;height:44px;border:1px solid var(--ink-line,#363b47);border-radius:12px;background:var(--ink-2,#1b1f28);color:var(--text,#eee);font-size:23px;line-height:1;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:opacity .18s,transform .18s}
       #cs-menu-button.cs-hidden{opacity:0;pointer-events:none;transform:scale(.9)}
