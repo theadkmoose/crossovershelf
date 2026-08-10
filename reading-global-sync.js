@@ -2,6 +2,10 @@
 (() => {
   "use strict";
 
+  // Prevent duplicate copies of this bridge from running at the same time.
+  if (window.__CROSSOVER_SHELF_RATING_BRIDGE_V2__) return;
+  window.__CROSSOVER_SHELF_RATING_BRIDGE_V2__ = true;
+
   const STORE = "crossoverShelfReadingHistoryV1";
   const STATUS_KEY = "crossover-shelf-status-v1";
   const RATING_EVENT = "crossoverShelfPersonalRatingChanged";
@@ -52,9 +56,7 @@
         const t = clean(h.textContent);
         return t && !/my reading|reading history|overview|crossovers|king|r\/fantasy/i.test(t);
       });
-      if (heading) {
-        return clean(heading.textContent).replace(/^[A-FS]\s*Tier\s*[·•-]\s*\d+\/100\s*/i, "");
-      }
+      if (heading) return clean(heading.textContent).replace(/^[A-FS]\s*Tier\s*[·•-]\s*\d+\/100\s*/i, "");
     }
     return "";
   }
@@ -88,10 +90,12 @@
     record.finishedAt = record.finishedAt || new Date().toISOString();
     history[key] = record;
     save(STORE, history);
+
     const statuses = load(STATUS_KEY, {});
     const books = Array.isArray(window.CrossoverShelfBooks) ? window.CrossoverShelfBooks : [];
     const book = books.find(b => keyFor(b?.title, b?.author) === key);
     if (book?.id) { statuses[book.id] = "read"; save(STATUS_KEY, statuses); }
+
     try { window.dispatchEvent(new CustomEvent(RATING_EVENT, {detail: record})); } catch (_) {}
     try { window.dispatchEvent(new CustomEvent("crossover-shelf-reading-synced", {detail: record})); } catch (_) {}
   }
@@ -107,20 +111,52 @@
     if (value) value.textContent = rating ? `${rating}/5` : "Not rated";
   }
 
+  function modalScope(start) {
+    // The active book modal is the smallest ancestor that contains both the
+    // book heading and the Reading Status controls. Keeping all DOM work
+    // inside this scope prevents duplicate boxes from other rendered layers.
+    let node = start;
+    for (let i = 0; i < 12 && node; i++, node = node.parentElement) {
+      if (findTitle(node) && [...node.querySelectorAll("button")].some(b => visible(b) && clean(b.textContent).toLowerCase() === "read")) {
+        return node;
+      }
+    }
+    return start?.parentElement || null;
+  }
+
+  function removeDuplicateBoxes(scope, identity) {
+    if (!scope) return null;
+    const matches = [...scope.querySelectorAll(".cs-rating-box")].filter(b => b.dataset.bookKey === identity);
+    if (!matches.length) return null;
+    const keep = matches[0];
+    matches.slice(1).forEach(b => b.remove());
+    return keep;
+  }
+
   function insertRating(readButton) {
     if (!readButton || !visible(readButton)) return;
+
+    const scope = modalScope(readButton);
+    if (!scope) return;
+    const title = findTitle(scope);
+    if (!title) return;
+    const author = findAuthor(scope);
+    const identity = keyFor(title, author);
+
+    // One rating box per currently open book modal — never one per rerender.
+    const existing = removeDuplicateBoxes(scope, identity);
+    if (existing) {
+      const { record } = recordFor(title, author);
+      render(existing, Number(record.rating) || 0);
+      return;
+    }
+
+    // Mark the Reading Status host so repeated MutationObserver callbacks do
+    // not create another box during the app's rerender cycle.
     const host = readButton.parentElement;
     if (!host) return;
-    let root = host;
-    for (let i = 0; i < 10 && root; i++, root = root.parentElement) {
-      if (findTitle(root)) break;
-    }
-    const title = findTitle(host);
-    if (!title) return;
-    const author = findAuthor(host);
-    const identity = keyFor(title, author);
-    const old = [...document.querySelectorAll(".cs-rating-box")].find(b => b.dataset.bookKey === identity);
-    if (old) return;
+    if (host.dataset.csRatingBookKey === identity) return;
+    host.dataset.csRatingBookKey = identity;
 
     const { record } = recordFor(title, author);
     const box = document.createElement("div");
@@ -140,27 +176,23 @@
       star.setAttribute("aria-label", `${n} out of 5 stars`);
       star.addEventListener("click", e => {
         e.preventDefault();
-        e.stopImmediatePropagation();
-        const chosen = Number(star.dataset.rating);
-        render(box, chosen);
-        saveRating(title, author, chosen);
-      }, true);
+        e.stopPropagation();
+        render(box, n);
+        saveRating(title, author, n);
+      });
       row.insertBefore(star, value);
     }
     render(box, Number(record.rating) || 0);
 
-    // Insert immediately after the Reading Status button row.
-    const rowParent = host.parentElement;
-    if (rowParent) rowParent.insertBefore(box, host.nextSibling);
-    else host.appendChild(box);
+    // Place exactly one box directly after the Reading Status control row.
+    host.insertAdjacentElement("afterend", box);
   }
 
   function onReadClick(e) {
     const button = e.target?.closest?.("button");
     if (!button || !visible(button) || clean(button.textContent).toLowerCase() !== "read") return;
-    // Let the app finish its own status update/rerender, then attach to the resulting DOM.
-    [60, 180, 400].forEach(delay => setTimeout(() => {
-      const current = readButtons()[0] || button;
+    [100, 300].forEach(delay => setTimeout(() => {
+      const current = readButtons().find(b => modalScope(b) === modalScope(button)) || button;
       insertRating(current);
     }, delay));
   }
@@ -168,15 +200,12 @@
   function init() {
     injectStyle();
     document.addEventListener("click", onReadClick, true);
-    // If the modal is already open and Read is already selected, attach immediately.
-    setTimeout(() => readButtons().forEach(insertRating), 150);
+    setTimeout(() => readButtons().forEach(insertRating), 250);
+
     const observer = new MutationObserver(() => {
-      const buttons = readButtons();
-      if (buttons.length) {
-        const selected = buttons.find(b => b.matches(".active,[aria-pressed='true'],[aria-selected='true']")) || buttons[0];
-        const text = clean(selected.textContent).toLowerCase();
-        if (text === "read") insertRating(selected);
-      }
+      // Only inspect the currently visible Reading Status controls. The
+      // per-host marker + scoped duplicate removal makes this idempotent.
+      readButtons().forEach(insertRating);
     });
     observer.observe(document.body, {childList:true, subtree:true});
   }
