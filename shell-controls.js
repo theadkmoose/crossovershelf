@@ -1,67 +1,29 @@
-/* Crossover Shelf — shell controls / UI only */
+/* Crossover Shelf — unified hamburger menu */
 (() => {
   "use strict";
   function boot(){
-    if(document.getElementById("cs-shell-tools")) return;
-    const style=document.createElement("style");
-    style.id="cs-shell-style";
-    style.textContent=`
-      #cs-shell-tools{
-        position:fixed;
-        left:50%;
-        bottom:calc(150px + env(safe-area-inset-bottom));
-        transform:translateX(-50%);
-        z-index:90;
-        display:flex;
-        gap:6px;
-        align-items:center;
-        justify-content:center;
-        pointer-events:none;
-      }
-      #cs-shell-tools button{
-        pointer-events:auto;
-        font:600 11px/1 IBM Plex Sans,sans-serif;
-        border:1px solid var(--ink-line,#363b47);
-        background:var(--ink-2,#1b1f28);
-        color:var(--text,#eee);
-        border-radius:999px;
-        padding:7px 10px;
-        cursor:pointer;
-        box-shadow:0 3px 12px rgba(0,0,0,.16);
-        white-space:nowrap;
-      }
-      #cs-shell-tools button:hover{border-color:var(--brass,#c89a3c)}
-      #cs-ai-fab{
-        right:12px !important;
-        bottom:calc(150px + env(safe-area-inset-bottom)) !important;
-        z-index:90 !important;
-        background:var(--ink-2,#1b1f28) !important;
-        color:var(--text,#eee) !important;
-        border-color:var(--ink-line,#363b47) !important;
-      }
-      @media(max-width:600px){
-        #cs-shell-tools{bottom:calc(142px + env(safe-area-inset-bottom));gap:5px}
-        #cs-shell-tools button{padding:6px 9px;font-size:10px}
-        #cs-ai-fab{bottom:calc(142px + env(safe-area-inset-bottom)) !important;right:10px !important}
-      }
-    `;
-    document.head.appendChild(style);
-
-    const tools=document.createElement("div");
-    tools.id="cs-shell-tools";
-    tools.innerHTML=`<button id="cs-my-reading-btn" type="button">▦ My Reading</button><button id="cs-refresh-btn" type="button">↻ Refresh</button>`;
-    document.body.appendChild(tools);
-
-    document.getElementById("cs-my-reading-btn").addEventListener("click",()=>{
-      try{
-        if(window.CrossoverShelfMyReading&&typeof window.CrossoverShelfMyReading.open==="function"){
-          window.CrossoverShelfMyReading.open();
-          return;
-        }
-      }catch(_){ }
-      document.dispatchEvent(new CustomEvent("crossoverShelfOpenMyReading"));
+    if(document.getElementById("cs-menu-button")) return;
+    const style=document.createElement("style");style.id="cs-menu-style";style.textContent=`
+      #cs-menu-button{position:fixed;left:12px;top:12px;z-index:12000;width:44px;height:44px;border:1px solid var(--ink-line,#363b47);border-radius:12px;background:var(--ink-2,#1b1f28);color:var(--text,#eee);font-size:23px;line-height:1;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+      #cs-menu-backdrop{position:fixed;inset:0;z-index:11998;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .2s}
+      #cs-side-menu{position:fixed;left:0;top:0;bottom:0;width:min(310px,84vw);z-index:11999;background:var(--ink-2,#1b1f28);color:var(--text,#eee);border-right:1px solid var(--ink-line,#363b47);box-shadow:16px 0 50px rgba(0,0,0,.3);transform:translateX(-102%);transition:transform .24s ease;padding:72px 18px 24px;box-sizing:border-box;overflow:auto}
+      #cs-menu-backdrop.open{opacity:1;pointer-events:auto}#cs-side-menu.open{transform:translateX(0)}
+      .cs-menu-title{font:700 1.45rem Fraunces,serif;margin:0 0 22px}.cs-menu-section{margin:20px 0 8px;font:600 .65rem 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim,#a7acb7)}
+      .cs-menu-item{width:100%;display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--ink-line,#363b47);background:transparent;color:var(--text,#eee);border-radius:10px;padding:12px 13px;margin:7px 0;font:inherit;cursor:pointer}.cs-menu-item:hover{border-color:var(--brass,#c89a3c)}
+      .cs-menu-close{position:absolute;right:14px;top:14px;border:0;background:transparent;color:var(--text-dim,#a7acb7);font-size:26px;cursor:pointer}
+    `;document.head.appendChild(style);
+    const button=document.createElement("button");button.id="cs-menu-button";button.type="button";button.setAttribute("aria-label","Open menu");button.textContent="☰";document.body.appendChild(button);
+    const backdrop=document.createElement("div");backdrop.id="cs-menu-backdrop";document.body.appendChild(backdrop);
+    const menu=document.createElement("aside");menu.id="cs-side-menu";menu.innerHTML=`<button class="cs-menu-close" type="button" aria-label="Close menu">×</button><h2 class="cs-menu-title">Crossover Shelf</h2><div class="cs-menu-section">Library</div><button class="cs-menu-item" data-action="add">＋ Add a Book</button><button class="cs-menu-item" data-action="save">▣ Save</button><div class="cs-menu-section">My Reading</div><button class="cs-menu-item" data-action="reading">▦ My Reading</button><button class="cs-menu-item" data-action="ai">✦ AI Recommendations</button><div class="cs-menu-section">App</div><button class="cs-menu-item" data-action="theme">◐ Dark Mode</button><button class="cs-menu-item" data-action="refresh">↻ Refresh</button>`;document.body.appendChild(menu);
+    const close=()=>{menu.classList.remove("open");backdrop.classList.remove("open")};const open=()=>{menu.classList.add("open");backdrop.classList.add("open")};button.onclick=open;backdrop.onclick=close;menu.querySelector(".cs-menu-close").onclick=close;
+    menu.addEventListener("click",e=>{const b=e.target.closest("[data-action]");if(!b)return;const a=b.dataset.action;
+      if(a==="reading"){close();window.CrossoverShelfMyReading?.open?.()||document.dispatchEvent(new CustomEvent("crossoverShelfOpenMyReading"))}
+      else if(a==="ai"){close();document.getElementById("cs-ai-fab")?.click()}
+      else if(a==="refresh"){close();location.reload()}
+      else if(a==="theme"){close();document.querySelector('[aria-label*="Dark Mode" i],button[title*="Dark Mode" i]')?.click()}
+      else if(a==="add"){close();document.querySelector('button[data-action="add-book"],button[onclick*="addBook" i],button[onclick*="Add Book" i]')?.click()}
+      else if(a==="save"){close();document.querySelector('button[data-action="save"],button[onclick*="save" i]')?.click()}
     });
-    document.getElementById("cs-refresh-btn").addEventListener("click",()=>location.reload());
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
 })();
