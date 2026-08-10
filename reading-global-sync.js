@@ -2,9 +2,8 @@
 (() => {
   "use strict";
 
-  // Prevent duplicate copies of this bridge from running at the same time.
-  if (window.__CROSSOVER_SHELF_RATING_BRIDGE_V2__) return;
-  window.__CROSSOVER_SHELF_RATING_BRIDGE_V2__ = true;
+  if (window.__CROSSOVER_SHELF_RATING_BRIDGE_V3__) return;
+  window.__CROSSOVER_SHELF_RATING_BRIDGE_V3__ = true;
 
   const STORE = "crossoverShelfReadingHistoryV1";
   const STATUS_KEY = "crossover-shelf-status-v1";
@@ -112,9 +111,6 @@
   }
 
   function modalScope(start) {
-    // The active book modal is the smallest ancestor that contains both the
-    // book heading and the Reading Status controls. Keeping all DOM work
-    // inside this scope prevents duplicate boxes from other rendered layers.
     let node = start;
     for (let i = 0; i < 12 && node; i++, node = node.parentElement) {
       if (findTitle(node) && [...node.querySelectorAll("button")].some(b => visible(b) && clean(b.textContent).toLowerCase() === "read")) {
@@ -124,41 +120,26 @@
     return start?.parentElement || null;
   }
 
-  function removeDuplicateBoxes(scope, identity) {
-    if (!scope) return null;
-    const matches = [...scope.querySelectorAll(".cs-rating-box")].filter(b => b.dataset.bookKey === identity);
-    if (!matches.length) return null;
-    const keep = matches[0];
-    matches.slice(1).forEach(b => b.remove());
+  // The app rerenders the modal several times when a book is opened or its
+  // status changes. That can replace the Reading Status host and cause an
+  // observer-driven injector to run again. There must be exactly ONE rating
+  // box for the active modal, regardless of how many render cycles occur.
+  function normalizeRatingBoxes(scope, identity) {
+    const all = [...document.querySelectorAll(".cs-rating-box")];
+    const inScope = all.filter(box => scope && scope.contains(box));
+    const sameBook = inScope.filter(box => box.dataset.bookKey === identity);
+    const keep = sameBook[0] || null;
+
+    // Remove boxes left behind by an earlier book/modal instance.
+    all.filter(box => !scope || !scope.contains(box)).forEach(box => box.remove());
+
+    // Remove duplicate copies created during React/DOM rerenders.
+    sameBook.slice(1).forEach(box => box.remove());
+
     return keep;
   }
 
-  function insertRating(readButton) {
-    if (!readButton || !visible(readButton)) return;
-
-    const scope = modalScope(readButton);
-    if (!scope) return;
-    const title = findTitle(scope);
-    if (!title) return;
-    const author = findAuthor(scope);
-    const identity = keyFor(title, author);
-
-    // One rating box per currently open book modal — never one per rerender.
-    const existing = removeDuplicateBoxes(scope, identity);
-    if (existing) {
-      const { record } = recordFor(title, author);
-      render(existing, Number(record.rating) || 0);
-      return;
-    }
-
-    // Mark the Reading Status host so repeated MutationObserver callbacks do
-    // not create another box during the app's rerender cycle.
-    const host = readButton.parentElement;
-    if (!host) return;
-    if (host.dataset.csRatingBookKey === identity) return;
-    host.dataset.csRatingBookKey = identity;
-
-    const { record } = recordFor(title, author);
+  function buildRatingBox(title, author, identity, record) {
     const box = document.createElement("div");
     box.className = "cs-rating-box";
     box.dataset.bookKey = identity;
@@ -177,14 +158,38 @@
       star.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
+        // Paint the selection first so the user sees the result immediately.
         render(box, n);
         saveRating(title, author, n);
       });
       row.insertBefore(star, value);
     }
     render(box, Number(record.rating) || 0);
+    return box;
+  }
 
-    // Place exactly one box directly after the Reading Status control row.
+  function insertRating(readButton) {
+    if (!readButton || !visible(readButton)) return;
+
+    const scope = modalScope(readButton);
+    if (!scope) return;
+    const title = findTitle(scope);
+    if (!title) return;
+    const author = findAuthor(scope);
+    const identity = keyFor(title, author);
+
+    const existing = normalizeRatingBoxes(scope, identity);
+    if (existing) {
+      const { record } = recordFor(title, author);
+      render(existing, Number(record.rating) || 0);
+      return;
+    }
+
+    const host = readButton.parentElement;
+    if (!host) return;
+
+    const { record } = recordFor(title, author);
+    const box = buildRatingBox(title, author, identity, record);
     host.insertAdjacentElement("afterend", box);
   }
 
@@ -203,8 +208,6 @@
     setTimeout(() => readButtons().forEach(insertRating), 250);
 
     const observer = new MutationObserver(() => {
-      // Only inspect the currently visible Reading Status controls. The
-      // per-host marker + scoped duplicate removal makes this idempotent.
       readButtons().forEach(insertRating);
     });
     observer.observe(document.body, {childList:true, subtree:true});
