@@ -3,17 +3,19 @@
 // fonts and Open Library cover assets. Enhancement modules are injected into index.html
 // so the large single-file application does not need to be rewritten.
 
-const CACHE_VERSION = "v7-reading-layer";
+const CACHE_VERSION = "v8-global-reading";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 const AI_SCRIPT = "./ai-recommendations.js";
 const READING_SCRIPT = "./reading-companion.js";
+const GLOBAL_READING_SCRIPT = "./reading-global-sync.js";
 
 const SHELL_ASSETS = [
   "./",
   "./index.html",
   AI_SCRIPT,
   READING_SCRIPT,
+  GLOBAL_READING_SCRIPT,
   "./manifest.webmanifest",
   "./icon-180.png",
   "./icon-192.png",
@@ -64,11 +66,11 @@ async function injectModules(response) {
   if (!contentType.includes("text/html")) return response;
 
   const html = await response.clone().text();
-  if (html.includes(AI_SCRIPT) && html.includes(READING_SCRIPT)) return response;
+  if (html.includes(AI_SCRIPT) && html.includes(READING_SCRIPT) && html.includes(GLOBAL_READING_SCRIPT)) return response;
 
   const injected = html.replace(
     /<\/body>/i,
-    `<script>try{if(!localStorage.getItem("crossoverShelfCoverCacheResetV1")){localStorage.removeItem("crossover-shelf-cover-cache-v1");localStorage.setItem("crossoverShelfCoverCacheResetV1","1")}}catch(e){}</script><style id="cs-ai-layout-fix">#cs-ai-fab{bottom:calc(78px + env(safe-area-inset-bottom)) !important;}</style><script src="${AI_SCRIPT}"></script><script src="${READING_SCRIPT}"></script></body>`
+    `<script>try{if(!localStorage.getItem("crossoverShelfCoverCacheResetV1")){localStorage.removeItem("crossover-shelf-cover-cache-v1");localStorage.setItem("crossoverShelfCoverCacheResetV1","1")}}catch(e){}</script><style id="cs-ai-layout-fix">#cs-ai-fab{bottom:calc(78px + env(safe-area-inset-bottom)) !important;}</style><script src="${AI_SCRIPT}"></script><script src="${READING_SCRIPT}"></script><script src="${GLOBAL_READING_SCRIPT}"></script></body>`
   );
   if (injected === html) return response;
 
