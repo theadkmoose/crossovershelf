@@ -40,6 +40,20 @@
     if(changed) save(data);
   }
 
+  function removeLegacyReadingStatus(){
+    const nodes=[...document.querySelectorAll("*")];
+    nodes.forEach(el=>{
+      if(el.id==="cs-reading-panel" || el.id==="cs-reading-launch") return;
+      if(el.classList?.contains("cs-modal-reading")) { el.remove(); return; }
+      const text=(el.textContent||"").trim();
+      if(text !== "My Reading Status") return;
+      if(el.children.length===0 || el.matches("h1,h2,h3,h4,h5,h6,.section-title,.panel-title,.modal-section-title")){
+        const parent=el.closest(".cs-modal-reading");
+        if(parent) parent.remove(); else el.remove();
+      }
+    });
+  }
+
   function injectStyles(){
     if(document.getElementById("cs-reading-styles")) return;
     const s=document.createElement("style"); s.id="cs-reading-styles"; s.textContent=`
@@ -94,7 +108,7 @@
     });
   }
   function renderTab(tab){const c=document.getElementById("cs-reading-content");if(!c)return;if(tab==="history")c.innerHTML=renderHistory();else if(tab==="analytics")c.innerHTML=renderAnalytics();else globalAI()}
-  function watchModal(){const observer=new MutationObserver(()=>{const b=currentBook();if(b){const k=keyFor(b.title,b.author);if(k!==lastBookKey){lastBookKey=k}else if(!document.querySelector(".cs-modal-reading"))renderModalControls();}});observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:["class"]});}
-  function init(){injectStyles();bootstrap();ensurePanel();addLaunch();watchModal();setTimeout(()=>{bootstrap();renderModalControls()},500)}
+  function watchModal(){const observer=new MutationObserver(()=>{removeLegacyReadingStatus();const b=currentBook();if(b){const k=keyFor(b.title,b.author);if(k!==lastBookKey){lastBookKey=k}else if(!document.querySelector(".cs-modal-reading"))renderModalControls();}});observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:["class"]});}
+  function init(){injectStyles();removeLegacyReadingStatus();bootstrap();ensurePanel();addLaunch();watchModal();setTimeout(()=>{removeLegacyReadingStatus();bootstrap();renderModalControls()},500)}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
