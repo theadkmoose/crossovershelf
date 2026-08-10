@@ -2,9 +2,6 @@
 (() => {
   "use strict";
 
-  if (window.__CROSSOVER_SHELF_RATING_BRIDGE_V3__) return;
-  window.__CROSSOVER_SHELF_RATING_BRIDGE_V3__ = true;
-
   const STORE = "crossoverShelfReadingHistoryV1";
   const STATUS_KEY = "crossover-shelf-status-v1";
   const RATING_EVENT = "crossoverShelfPersonalRatingChanged";
@@ -55,7 +52,9 @@
         const t = clean(h.textContent);
         return t && !/my reading|reading history|overview|crossovers|king|r\/fantasy/i.test(t);
       });
-      if (heading) return clean(heading.textContent).replace(/^[A-FS]\s*Tier\s*[·•-]\s*\d+\/100\s*/i, "");
+      if (heading) {
+        return clean(heading.textContent).replace(/^[A-FS]\s*Tier\s*[·•-]\s*\d+\/100\s*/i, "");
+      }
     }
     return "";
   }
@@ -89,12 +88,10 @@
     record.finishedAt = record.finishedAt || new Date().toISOString();
     history[key] = record;
     save(STORE, history);
-
     const statuses = load(STATUS_KEY, {});
     const books = Array.isArray(window.CrossoverShelfBooks) ? window.CrossoverShelfBooks : [];
     const book = books.find(b => keyFor(b?.title, b?.author) === key);
     if (book?.id) { statuses[book.id] = "read"; save(STATUS_KEY, statuses); }
-
     try { window.dispatchEvent(new CustomEvent(RATING_EVENT, {detail: record})); } catch (_) {}
     try { window.dispatchEvent(new CustomEvent("crossover-shelf-reading-synced", {detail: record})); } catch (_) {}
   }
@@ -110,36 +107,22 @@
     if (value) value.textContent = rating ? `${rating}/5` : "Not rated";
   }
 
-  function modalScope(start) {
-    let node = start;
-    for (let i = 0; i < 12 && node; i++, node = node.parentElement) {
-      if (findTitle(node) && [...node.querySelectorAll("button")].some(b => visible(b) && clean(b.textContent).toLowerCase() === "read")) {
-        return node;
-      }
+  function insertRating(readButton) {
+    if (!readButton || !visible(readButton)) return;
+    const host = readButton.parentElement;
+    if (!host) return;
+    let root = host;
+    for (let i = 0; i < 10 && root; i++, root = root.parentElement) {
+      if (findTitle(root)) break;
     }
-    return start?.parentElement || null;
-  }
+    const title = findTitle(host);
+    if (!title) return;
+    const author = findAuthor(host);
+    const identity = keyFor(title, author);
+    const old = [...document.querySelectorAll(".cs-rating-box")].find(b => b.dataset.bookKey === identity);
+    if (old) return;
 
-  // The app rerenders the modal several times when a book is opened or its
-  // status changes. That can replace the Reading Status host and cause an
-  // observer-driven injector to run again. There must be exactly ONE rating
-  // box for the active modal, regardless of how many render cycles occur.
-  function normalizeRatingBoxes(scope, identity) {
-    const all = [...document.querySelectorAll(".cs-rating-box")];
-    const inScope = all.filter(box => scope && scope.contains(box));
-    const sameBook = inScope.filter(box => box.dataset.bookKey === identity);
-    const keep = sameBook[0] || null;
-
-    // Remove boxes left behind by an earlier book/modal instance.
-    all.filter(box => !scope || !scope.contains(box)).forEach(box => box.remove());
-
-    // Remove duplicate copies created during React/DOM rerenders.
-    sameBook.slice(1).forEach(box => box.remove());
-
-    return keep;
-  }
-
-  function buildRatingBox(title, author, identity, record) {
+    const { record } = recordFor(title, author);
     const box = document.createElement("div");
     box.className = "cs-rating-box";
     box.dataset.bookKey = identity;
@@ -157,47 +140,25 @@
       star.setAttribute("aria-label", `${n} out of 5 stars`);
       star.addEventListener("click", e => {
         e.preventDefault();
-        e.stopPropagation();
-        // Paint the selection first so the user sees the result immediately.
-        render(box, n);
-        saveRating(title, author, n);
-      });
+        e.stopImmediatePropagation();
+        const chosen = Number(star.dataset.rating);
+        render(box, chosen);
+        saveRating(title, author, chosen);
+      }, true);
       row.insertBefore(star, value);
     }
     render(box, Number(record.rating) || 0);
-    return box;
-  }
 
-  function insertRating(readButton) {
-    if (!readButton || !visible(readButton)) return;
-
-    const scope = modalScope(readButton);
-    if (!scope) return;
-    const title = findTitle(scope);
-    if (!title) return;
-    const author = findAuthor(scope);
-    const identity = keyFor(title, author);
-
-    const existing = normalizeRatingBoxes(scope, identity);
-    if (existing) {
-      const { record } = recordFor(title, author);
-      render(existing, Number(record.rating) || 0);
-      return;
-    }
-
-    const host = readButton.parentElement;
-    if (!host) return;
-
-    const { record } = recordFor(title, author);
-    const box = buildRatingBox(title, author, identity, record);
-    host.insertAdjacentElement("afterend", box);
+    const rowParent = host.parentElement;
+    if (rowParent) rowParent.insertBefore(box, host.nextSibling);
+    else host.appendChild(box);
   }
 
   function onReadClick(e) {
     const button = e.target?.closest?.("button");
     if (!button || !visible(button) || clean(button.textContent).toLowerCase() !== "read") return;
-    [100, 300].forEach(delay => setTimeout(() => {
-      const current = readButtons().find(b => modalScope(b) === modalScope(button)) || button;
+    [60, 180, 400].forEach(delay => setTimeout(() => {
+      const current = readButtons()[0] || button;
       insertRating(current);
     }, delay));
   }
@@ -205,10 +166,14 @@
   function init() {
     injectStyle();
     document.addEventListener("click", onReadClick, true);
-    setTimeout(() => readButtons().forEach(insertRating), 250);
-
+    setTimeout(() => readButtons().forEach(insertRating), 150);
     const observer = new MutationObserver(() => {
-      readButtons().forEach(insertRating);
+      const buttons = readButtons();
+      if (buttons.length) {
+        const selected = buttons.find(b => b.matches(".active,[aria-pressed='true'],[aria-selected='true']")) || buttons[0];
+        const text = clean(selected.textContent).toLowerCase();
+        if (text === "read") insertRating(selected);
+      }
     });
     observer.observe(document.body, {childList:true, subtree:true});
   }
