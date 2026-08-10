@@ -1,4 +1,4 @@
-/* Crossover Shelf — lightweight app controls: refresh + launch splash */
+/* Crossover Shelf — lightweight app controls: refresh + launch splash + reading rating bridge */
 (() => {
   "use strict";
   const STYLE_ID = "cs-shell-controls-style";
@@ -55,10 +55,27 @@
     window.requestAnimationFrame(() => setTimeout(dismiss, 850));
   }
 
+  function loadReadingRatingBridge() {
+    if (window.__crossoverShelfReadingRatingBridgeLoaded) return;
+    window.__crossoverShelfReadingRatingBridgeLoaded = true;
+    const script = document.createElement("script");
+    script.src = "reading-global-sync.js?v=rating-20260810";
+    script.async = false;
+    script.onload = () => {
+      window.dispatchEvent(new CustomEvent("crossover-shelf-reading-rating-bridge-ready"));
+    };
+    script.onerror = () => {
+      // Allow a later retry if the browser temporarily failed to fetch the file.
+      window.__crossoverShelfReadingRatingBridgeLoaded = false;
+    };
+    document.head.appendChild(script);
+  }
+
   function init() {
     addStyles();
     createSplash();
     createRefresh();
+    loadReadingRatingBridge();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, {once:true});
