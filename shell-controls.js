@@ -13,6 +13,9 @@
       .cs-menu-item{width:100%;display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--ink-line,#363b47);background:transparent;color:var(--text,#eee);border-radius:10px;padding:12px 13px;margin:7px 0;font:inherit;cursor:pointer}.cs-menu-item:hover{border-color:var(--brass,#c89a3c)}
       .cs-menu-close{position:absolute;right:14px;top:calc(14px + env(safe-area-inset-top));border:0;background:transparent;color:var(--text-dim,#a7acb7);font-size:26px;cursor:pointer}
       #cs-ai-fab,.cs-ai-fab,button[title="AI recommendation settings"]{display:none!important}
+      /* iPhone safe-area protection for the My Reading modal */
+      #cs-my-reading{padding-top:calc(env(safe-area-inset-top,0px) + 16px)!important;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px)!important;overflow:hidden!important}
+      #cs-my-reading .cs-mr-box{max-height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 32px)!important;-webkit-overflow-scrolling:touch}
     `;document.head.appendChild(style);
     const removeLegacyAI=()=>{document.querySelectorAll("#cs-ai-fab,.cs-ai-fab,button[title=\"AI recommendation settings\"]").forEach(el=>el.remove());document.querySelectorAll("button").forEach(el=>{if(el.textContent?.trim()==="✦ AI")el.remove()})};removeLegacyAI();
     const button=document.createElement("button");button.id="cs-menu-button";button.type="button";button.setAttribute("aria-label","Open menu");button.textContent="☰";document.body.appendChild(button);
