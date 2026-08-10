@@ -12,22 +12,23 @@
       .cs-menu-title{font:700 1.45rem Fraunces,serif;margin:0 0 22px}.cs-menu-section{margin:20px 0 8px;font:600 .65rem 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim,#a7acb7)}
       .cs-menu-item{width:100%;display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--ink-line,#363b47);background:transparent;color:var(--text,#eee);border-radius:10px;padding:12px 13px;margin:7px 0;font:inherit;cursor:pointer}.cs-menu-item:hover{border-color:var(--brass,#c89a3c)}
       .cs-menu-close{position:absolute;right:14px;top:calc(14px + env(safe-area-inset-top));border:0;background:transparent;color:var(--text-dim,#a7acb7);font-size:26px;cursor:pointer}
-      #cs-ai-fab{display:none!important}
+      #cs-ai-fab,.cs-ai-fab,button[title="AI recommendation settings"]{display:none!important}
     `;document.head.appendChild(style);
+    const removeLegacyAI=()=>{document.querySelectorAll("#cs-ai-fab,.cs-ai-fab,button[title=\"AI recommendation settings\"]").forEach(el=>el.remove());document.querySelectorAll("button").forEach(el=>{if(el.textContent?.trim()==="✦ AI")el.remove()})};removeLegacyAI();
     const button=document.createElement("button");button.id="cs-menu-button";button.type="button";button.setAttribute("aria-label","Open menu");button.textContent="☰";document.body.appendChild(button);
     const backdrop=document.createElement("div");backdrop.id="cs-menu-backdrop";document.body.appendChild(backdrop);
     const menu=document.createElement("aside");menu.id="cs-side-menu";menu.innerHTML=`<button class="cs-menu-close" type="button" aria-label="Close menu">×</button><h2 class="cs-menu-title">Crossover Shelf</h2><div class="cs-menu-section">Library</div><button class="cs-menu-item" data-action="add">＋ Add a Book</button><button class="cs-menu-item" data-action="save">▣ Save</button><div class="cs-menu-section">My Reading</div><button class="cs-menu-item" data-action="reading">▦ My Reading</button><button class="cs-menu-item" data-action="ai">✦ AI Recommendations</button><div class="cs-menu-section">App</div><button class="cs-menu-item" data-action="theme">◐ Dark Mode</button><button class="cs-menu-item" data-action="refresh">↻ Refresh</button>`;document.body.appendChild(menu);
     const close=()=>{menu.classList.remove("open");backdrop.classList.remove("open")};const open=()=>{menu.classList.add("open");backdrop.classList.add("open")};button.onclick=open;backdrop.onclick=close;menu.querySelector(".cs-menu-close").onclick=close;
     menu.addEventListener("click",e=>{const b=e.target.closest("[data-action]");if(!b)return;const a=b.dataset.action;
       if(a==="reading"){close();window.CrossoverShelfMyReading?.open?.()||document.dispatchEvent(new CustomEvent("crossoverShelfOpenMyReading"))}
-      else if(a==="ai"){close();document.getElementById("cs-ai-fab")?.click()}
+      else if(a==="ai"){close();const ai=document.getElementById("cs-ai-fab");if(ai)ai.click();else window.CrossoverShelfAI?.openSettings?.()||document.dispatchEvent(new CustomEvent("crossoverShelfOpenAI"))}
       else if(a==="refresh"){close();location.reload()}
       else if(a==="theme"){close();document.querySelector('[aria-label*="Dark Mode" i],button[title*="Dark Mode" i]')?.click()}
       else if(a==="add"){close();document.querySelector('button[data-action="add-book"],button[onclick*="addBook" i],button[onclick*="Add Book" i]')?.click()}
       else if(a==="save"){close();document.querySelector('button[data-action="save"],button[onclick*="save" i]')?.click()}
     });
     const syncMyReadingVisibility=()=>{const mr=document.getElementById("cs-my-reading");button.classList.toggle("cs-hidden",!!mr?.classList.contains("open"));};
-    const watchMyReading=()=>{const mr=document.getElementById("cs-my-reading");if(!mr){setTimeout(watchMyReading,100);return}syncMyReadingVisibility();new MutationObserver(syncMyReadingVisibility).observe(mr,{attributes:true,attributeFilter:["class"])};};
+    const watchMyReading=()=>{const mr=document.getElementById("cs-my-reading");if(!mr){setTimeout(watchMyReading,100);return}syncMyReadingVisibility();new MutationObserver(syncMyReadingVisibility).observe(mr,{attributes:true,attributeFilter:["class"]});};
     watchMyReading();
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
