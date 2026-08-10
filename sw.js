@@ -1,9 +1,9 @@
 // Crossover Shelf — service worker
 // Strategy: cache-first for the app shell, stale-while-revalidate for
-// fonts and Open Library assets. The AI module is injected into index.html
+// fonts and Open Library cover assets. The AI module is injected into index.html
 // so the large single-file application does not need to be rewritten.
 
-const CACHE_VERSION = "v4-ai";
+const CACHE_VERSION = "v5-ai-covers";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 const AI_SCRIPT = "./ai-recommendations.js";
@@ -38,9 +38,6 @@ self.addEventListener("activate", (event) => {
       .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
       .then((clients) => Promise.all(
         clients.map((client) => {
-          // A newly installed worker does not control the page that registered it
-          // until navigation. Reload existing tabs once so the AI module is served
-          // through this worker immediately instead of requiring a manual refresh.
           if (client.url && "navigate" in client) {
             return client.navigate(client.url).catch(() => undefined);
           }
@@ -69,7 +66,7 @@ async function injectAiModule(response) {
 
   const injected = html.replace(
     /<\/body>/i,
-    `<script src="${AI_SCRIPT}"></script></body>`
+    `<script>try{if(!localStorage.getItem("crossoverShelfCoverCacheResetV1")){localStorage.removeItem("crossover-shelf-cover-cache-v1");localStorage.setItem("crossoverShelfCoverCacheResetV1","1")}}catch(e){}</script><style id="cs-ai-layout-fix">#cs-ai-fab{bottom:calc(78px + env(safe-area-inset-bottom)) !important;}</style><script src="${AI_SCRIPT}"></script></body>`
   );
   if (injected === html) return response;
 
@@ -112,6 +109,24 @@ self.addEventListener("fetch", (event) => {
           return isAppDocument ? injectAiModule(fallback) : fallback;
         }
       })
+    );
+    return;
+  }
+
+  if (url.hostname === "openlibrary.org" && url.pathname.endsWith("/search.json")) {
+    event.respondWith(
+      fetch(req)
+        .then(async (response) => {
+          if (response.ok) {
+            const cache = await caches.open(RUNTIME_CACHE);
+            await cache.put(req, response.clone());
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cache = await caches.open(RUNTIME_CACHE);
+          return cache.match(req);
+        })
     );
     return;
   }
