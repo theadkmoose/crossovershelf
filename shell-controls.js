@@ -14,7 +14,13 @@
     }
     if(!document.getElementById("cs-shell-splash")){const splash=document.createElement("div");splash.id="cs-shell-splash";splash.innerHTML=`<div class="cs-splash-inner"><img class="cs-splash-mark" src="./icon-192.png" alt=""><div class="cs-splash-title">Crossover Shelf</div><div class="cs-splash-sub">Literary Awards × Genre Fiction</div></div>`;document.body.appendChild(splash);setTimeout(()=>splash.classList.add("cs-hidden"),850);setTimeout(()=>splash.remove(),1250)}
     let tools=document.getElementById("cs-shell-tools");if(!tools){tools=document.createElement("div");tools.id="cs-shell-tools";tools.innerHTML=`<button id="cs-my-reading-btn" type="button">▦ My Reading</button><button id="cs-refresh-btn" type="button">↻ Refresh</button>`;document.body.appendChild(tools)}
-    const mr=document.getElementById("cs-my-reading-btn");if(mr&&!mr.dataset.bound){mr.dataset.bound="1";mr.addEventListener("click",()=>document.dispatchEvent(new CustomEvent("crossoverShelfOpenMyReading")))}
+    const mr=document.getElementById("cs-my-reading-btn");
+    if(mr&&!mr.dataset.bound){mr.dataset.bound="1";mr.addEventListener("click",()=>{
+      const tryOpen=()=>{if(window.CrossoverShelfMyReading&&typeof window.CrossoverShelfMyReading.open==="function"){window.CrossoverShelfMyReading.open();return true}return false};
+      if(tryOpen())return;
+      document.dispatchEvent(new CustomEvent("crossoverShelfOpenMyReading"));
+      let attempts=0;const timer=setInterval(()=>{attempts++;if(tryOpen()||attempts>=30)clearInterval(timer)},100);
+    })}
     const rf=document.getElementById("cs-refresh-btn");if(rf&&!rf.dataset.bound){rf.dataset.bound="1";rf.addEventListener("click",()=>location.reload())}
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
