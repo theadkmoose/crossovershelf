@@ -1,17 +1,19 @@
 // Crossover Shelf — service worker
 // Strategy: cache-first for the app shell, stale-while-revalidate for
-// fonts and Open Library cover assets. The AI module is injected into index.html
+// fonts and Open Library cover assets. Enhancement modules are injected into index.html
 // so the large single-file application does not need to be rewritten.
 
-const CACHE_VERSION = "v5-ai-covers";
+const CACHE_VERSION = "v6-reading-layer";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 const AI_SCRIPT = "./ai-recommendations.js";
+const READING_SCRIPT = "./reading-companion.js";
 
 const SHELL_ASSETS = [
   "./",
   "./index.html",
   AI_SCRIPT,
+  READING_SCRIPT,
   "./manifest.webmanifest",
   "./icon-180.png",
   "./icon-192.png",
@@ -56,17 +58,17 @@ function isRuntimeCacheable(url) {
   );
 }
 
-async function injectAiModule(response) {
+async function injectModules(response) {
   if (!response || !response.ok) return response;
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
 
   const html = await response.clone().text();
-  if (html.includes(AI_SCRIPT)) return response;
+  if (html.includes(AI_SCRIPT) && html.includes(READING_SCRIPT)) return response;
 
   const injected = html.replace(
     /<\/body>/i,
-    `<script>try{if(!localStorage.getItem("crossoverShelfCoverCacheResetV1")){localStorage.removeItem("crossover-shelf-cover-cache-v1");localStorage.setItem("crossoverShelfCoverCacheResetV1","1")}}catch(e){}</script><style id="cs-ai-layout-fix">#cs-ai-fab{bottom:calc(78px + env(safe-area-inset-bottom)) !important;}</style><script src="${AI_SCRIPT}"></script></body>`
+    `<script>try{if(!localStorage.getItem("crossoverShelfCoverCacheResetV1")){localStorage.removeItem("crossover-shelf-cover-cache-v1");localStorage.setItem("crossoverShelfCoverCacheResetV1","1")}}catch(e){}</script><style id="cs-ai-layout-fix">#cs-ai-fab{bottom:calc(78px + env(safe-area-inset-bottom)) !important;}</style><script src="${AI_SCRIPT}"></script><script src="${READING_SCRIPT}"></script></body>`
   );
   if (injected === html) return response;
 
@@ -95,7 +97,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.match(req).then(async (cached) => {
         if (cached) {
-          return isAppDocument ? injectAiModule(cached) : cached;
+          return isAppDocument ? injectModules(cached) : cached;
         }
 
         try {
@@ -103,10 +105,10 @@ self.addEventListener("fetch", (event) => {
           const copy = response.clone();
           const cache = await caches.open(SHELL_CACHE);
           await cache.put(req, copy);
-          return isAppDocument ? injectAiModule(response) : response;
+          return isAppDocument ? injectModules(response) : response;
         } catch (_) {
           const fallback = await caches.match("./index.html");
-          return isAppDocument ? injectAiModule(fallback) : fallback;
+          return isAppDocument ? injectModules(fallback) : fallback;
         }
       })
     );
