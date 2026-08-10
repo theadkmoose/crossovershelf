@@ -35,6 +35,18 @@ self.addEventListener("activate", (event) => {
           .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+      .then((clients) => Promise.all(
+        clients.map((client) => {
+          // A newly installed worker does not control the page that registered it
+          // until navigation. Reload existing tabs once so the AI module is served
+          // through this worker immediately instead of requiring a manual refresh.
+          if (client.url && "navigate" in client) {
+            return client.navigate(client.url).catch(() => undefined);
+          }
+          return undefined;
+        })
+      ))
   );
 });
 
