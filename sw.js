@@ -3,7 +3,7 @@
 // fonts and Open Library cover assets. Enhancement modules are injected into index.html
 // so the large single-file application does not need to be rewritten.
 
-const CACHE_VERSION = "v6-reading-layer";
+const CACHE_VERSION = "v7-reading-layer";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 const AI_SCRIPT = "./ai-recommendations.js";
