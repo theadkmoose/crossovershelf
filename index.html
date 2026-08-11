@@ -1946,7 +1946,8 @@ function openBookModal(id){
   }
 
   const store = window.CrossoverShelfReadingStore;
-  const currentStatus = store?.get ? (store.get(b.id)?.status || readingStatus[b.id] || "unread") : (readingStatus[b.id] || "unread");
+  const toUiStatus = status => status === "want-to-read" ? "want" : (status || "unread");
+  const currentStatus = store?.get ? toUiStatus(store.get(b.id)?.status || readingStatus[b.id] || "unread") : (readingStatus[b.id] || "unread");
   readingStatus[b.id] = currentStatus;
   document.querySelectorAll(".status-btn").forEach(btn=>{
     btn.classList.toggle("active", currentStatus===btn.dataset.status);
@@ -1954,7 +1955,7 @@ function openBookModal(id){
       const nextStatus = btn.dataset.status;
       if(store?.setStatus){
         const record = store.setStatus(b.id, nextStatus, {title:b.title, author:b.author});
-        readingStatus[b.id] = record?.status || nextStatus;
+        readingStatus[b.id] = toUiStatus(record?.status || nextStatus);
       } else {
         readingStatus[b.id] = nextStatus;
         localStorage.setItem(STATUS_KEY, JSON.stringify(readingStatus));
