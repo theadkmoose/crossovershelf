@@ -94,19 +94,29 @@
   function findTitle(start) { let node=start; for(let i=0;i<10&&node;i++,node=node.parentElement){ const h=[...node.querySelectorAll("h1,h2,h3")].find(x=>visible(x)&&clean(x.textContent)&&!/my reading|reading history|overview|crossovers|king|r\/fantasy/i.test(clean(x.textContent))); if(h)return clean(h.textContent).replace(/^[A-FS]\s*Tier\s*[·•-]\s*\d+\/100\s*/i,""); } return ""; }
   function findAuthor(start) { let node=start; for(let i=0;i<10&&node;i++,node=node.parentElement){ const by=[...node.querySelectorAll("p,div,span")].find(x=>visible(x)&&/^by\s+/i.test(clean(x.textContent))&&clean(x.textContent).length<180&&!x.querySelector("h1,h2,h3")); if(by)return clean(by.textContent).replace(/^by\s+/i,"").split(/\s+[·•]\s+/)[0].trim(); } return ""; }
   function render(box,rating){ box.querySelectorAll(".cs-rating-star").forEach(b=>{const on=Number(b.dataset.rating)<=rating;b.classList.toggle("is-on",on);b.textContent=on?"★":"☆";}); const value=box.querySelector(".cs-rating-value"); if(value)value.textContent=rating?`${rating}/5`:"Not rated"; }
+  function clearRatingUI(){ document.querySelectorAll(".cs-rating-box").forEach(box=>box.remove()); }
   function insertRating(readButton){
     if(!readButton||!visible(readButton))return;
     const host=readButton.parentElement;if(!host)return;
     const title=findTitle(host);if(!title)return; const author=findAuthor(host), identity=legacyKey(title,author);
-    document.querySelectorAll(".cs-rating-box").forEach(box=>{if(box.dataset.bookKey!==identity)box.remove();});
-    if(document.querySelector(`.cs-rating-box[data-book-key="${CSS.escape(identity)}"]`))return;
+    clearRatingUI();
     const book=books().find(item=>legacyKey(item?.title,item?.author)===identity), record=book?ReadingStore.get(book.id):load(HISTORY,{})[identity];
     const box=document.createElement("div");box.className="cs-rating-box";box.dataset.bookKey=identity;box.innerHTML=`<span class="cs-rating-label">Your rating</span><div class="cs-rating-row" role="radiogroup" aria-label="Your rating"></div>`;
     const row=box.querySelector(".cs-rating-row");
     for(let n=1;n<=5;n++){const star=document.createElement("button");star.type="button";star.className="cs-rating-star";star.dataset.rating=String(n);star.setAttribute("aria-label",`${n} out of 5 stars`);star.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();render(box,n);if(book?.id)ReadingStore.setRating(book.id,n,{title,author});});row.appendChild(star);}
     const value=document.createElement("span");value.className="cs-rating-value";row.appendChild(value);render(box,Number(record?.rating)||0);host.parentElement?.insertBefore(box,host.nextSibling);
   }
-  function onReadClick(event){const button=event.target?.closest?.("button");if(!readButton(button))return;requestAnimationFrame(()=>requestAnimationFrame(()=>insertRating(button)));}
-  function init(){injectStyle();migrateLegacyRecords();document.addEventListener("click",onReadClick,true);}
+  function onDocumentClick(event){
+    const target=event.target;
+    if(target?.closest?.(".cs-rating-box"))return;
+    const button=target?.closest?.("button");
+    if(readButton(button)){
+      clearRatingUI();
+      requestAnimationFrame(()=>requestAnimationFrame(()=>insertRating(button)));
+      return;
+    }
+    if(document.querySelector(".cs-rating-box")) clearRatingUI();
+  }
+  function init(){injectStyle();migrateLegacyRecords();document.addEventListener("click",onDocumentClick,true);}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
