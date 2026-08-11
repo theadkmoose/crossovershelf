@@ -1,79 +1,48 @@
 /* Crossover Shelf — My Reading view; reads from the single ReadingStore */
 (() => {
   "use strict";
-  const HISTORY = "crossoverShelfReadingHistoryV1";
-  const STATUS = "crossover-shelf-status-v1";
   const esc = value => String(value ?? "").replace(/[&<>\"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
   const legacyKey = (title, author = "") => `${String(title || "").trim().toLowerCase()}::${String(author || "").replace(/^by\s+/i, "").trim().toLowerCase()}`;
-  const json = key => { try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch (_) { return {}; } };
-  const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {} };
   const store = () => window.CrossoverShelfReadingStore;
-  const getAll = () => store()?.getAll?.() || Object.values(json(HISTORY)).filter(r => r?.title);
+  const getAll = () => store()?.getAll?.() || [];
 
   const style = `#cs-my-reading{position:fixed;inset:0;z-index:12000;display:none;align-items:flex-start;justify-content:center;padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));box-sizing:border-box;background:rgba(5,7,11,.84);backdrop-filter:blur(4px)}#cs-my-reading.open{display:flex}.cs-mr-box{width:min(920px,100%);max-height:calc(100vh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;background:var(--ink-2,#1b1f28);color:var(--text,#eee);border:1px solid var(--ink-line,#363b47);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.5)}.cs-mr-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;gap:12px;padding:18px 20px;background:var(--ink-2,#1b1f28);border-bottom:1px solid var(--ink-line,#363b47)}.cs-mr-head h2{margin:0;font:700 1.5rem Fraunces,serif}.cs-mr-head p{margin:4px 0 0;font-size:.75rem;color:var(--text-dim,#a7acb7)}.cs-mr-close{border:1px solid var(--ink-line,#363b47);background:transparent;color:inherit;border-radius:50%;width:38px;height:38px;font-size:1.3rem}.cs-mr-tabs{display:flex;gap:6px;padding:11px 20px;overflow-x:auto;overscroll-behavior-x:contain;border-bottom:1px solid var(--ink-line,#363b47);-webkit-overflow-scrolling:touch}.cs-mr-tab,.cs-mr-btn{border:1px solid var(--ink-line,#363b47);background:transparent;color:inherit;border-radius:9px;padding:8px 11px;white-space:nowrap}.cs-mr-tab{border-radius:999px}.cs-mr-tab.active,.cs-mr-btn.active{background:var(--brass,#c89a3c);color:#111;border-color:var(--brass,#c89a3c)}.cs-mr-body{padding:18px 20px 24px}.cs-mr-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.cs-mr-stat{padding:12px;border-radius:12px;background:var(--ink-3,#242934)}.cs-mr-stat b{display:block;font:700 1.2rem 'IBM Plex Mono',monospace}.cs-mr-stat span{font-size:.65rem;color:var(--text-dim,#a7acb7);text-transform:uppercase}.cs-mr-list{margin-top:16px}.cs-mr-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--ink-line,#363b47)}.cs-mr-title{border:0;background:none;color:inherit;padding:0;text-align:left;font:600 1rem Fraunces,serif}.cs-mr-author{font-size:.72rem;color:var(--text-dim,#a7acb7);margin-top:3px}.cs-mr-stars{color:var(--brass,#c89a3c);margin-top:4px}.cs-mr-badge{font-size:.62rem;color:var(--brass,#c89a3c);text-transform:uppercase}.cs-mr-card{padding:15px;border:1px solid var(--ink-line,#363b47);border-radius:12px;background:var(--ink-3,#242934);margin-bottom:12px}.cs-mr-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.cs-mr-detail{position:fixed;inset:0;z-index:12010;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(5,7,11,.78)}.cs-mr-detail.open{display:flex}.cs-mr-detail-box{width:min(500px,100%);padding:20px;border-radius:16px;background:var(--ink-2,#1b1f28);border:1px solid var(--ink-line,#363b47)}.cs-mr-rating{display:flex;gap:2px;margin:8px 0}.cs-mr-rating button{border:0;background:none;color:var(--text-dim,#a7acb7);font-size:1.8rem;padding:2px}.cs-mr-rating button.on{color:var(--brass,#c89a3c)}.cs-mr-label{display:block;margin-top:15px;font-size:.65rem;text-transform:uppercase;color:var(--text-dim,#a7acb7)}@media(max-width:600px){.cs-mr-stats{grid-template-columns:repeat(2,1fr)}.cs-mr-body{padding:15px}.cs-mr-head{padding:15px}}`;
 
-  function ensure() {
-    if (document.getElementById("cs-my-reading")) return;
-    const s = document.createElement("style"); s.id = "cs-my-reading-style"; s.textContent = style; document.head.appendChild(s);
-    const root = document.createElement("div"); root.id = "cs-my-reading";
-    root.innerHTML = `<section class="cs-mr-box"><header class="cs-mr-head"><div><h2>My Reading</h2><p>Your reading history, statuses, ratings, and analytics.</p></div><button class="cs-mr-close" type="button">×</button></header><div class="cs-mr-tabs"><button class="cs-mr-tab active" data-tab="overview">Overview</button><button class="cs-mr-tab" data-tab="reading">Reading</button><button class="cs-mr-tab" data-tab="read">Read</button><button class="cs-mr-tab" data-tab="history">History</button><button class="cs-mr-tab" data-tab="want">Want to Read</button><button class="cs-mr-tab" data-tab="dnf">DNF</button></div><main class="cs-mr-body"></main></section><div class="cs-mr-detail"><div class="cs-mr-detail-box"></div></div>`;
+  function ensure(){
+    if(document.getElementById("cs-my-reading"))return;
+    const s=document.createElement("style");s.id="cs-my-reading-style";s.textContent=style;document.head.appendChild(s);
+    const root=document.createElement("div");root.id="cs-my-reading";
+    root.innerHTML=`<section class="cs-mr-box"><header class="cs-mr-head"><div><h2>My Reading</h2><p>Your reading history, statuses, ratings, and analytics.</p></div><button class="cs-mr-close" type="button">×</button></header><div class="cs-mr-tabs"><button class="cs-mr-tab active" data-tab="overview">Overview</button><button class="cs-mr-tab" data-tab="reading">Reading</button><button class="cs-mr-tab" data-tab="read">Read</button><button class="cs-mr-tab" data-tab="history">History</button><button class="cs-mr-tab" data-tab="want">Want to Read</button><button class="cs-mr-tab" data-tab="dnf">DNF</button></div><main class="cs-mr-body"></main></section><div class="cs-mr-detail"><div class="cs-mr-detail-box"></div></div>`;
     document.body.appendChild(root);
-    root.querySelector(".cs-mr-close").onclick = close;
-    root.addEventListener("click", event => {
-      if (event.target === root) return close();
-      const tab = event.target.closest(".cs-mr-tab");
-      if (tab) { root.dataset.tab = tab.dataset.tab; render(); return; }
-      const title = event.target.closest(".cs-mr-title");
-      if (title) detail(title.dataset.k);
-    });
-    root.querySelector(".cs-mr-detail").addEventListener("click", event => { if (event.target.classList.contains("cs-mr-detail")) closeDetail(); });
+    root.querySelector(".cs-mr-close").onclick=close;
+    root.addEventListener("click",event=>{if(event.target===root)return close();const tab=event.target.closest(".cs-mr-tab");if(tab){root.dataset.tab=tab.dataset.tab;render();return;}const title=event.target.closest(".cs-mr-title");if(title)detail(title.dataset.k);});
+    root.querySelector(".cs-mr-detail").addEventListener("click",event=>{if(event.target.classList.contains("cs-mr-detail"))closeDetail();});
   }
-
-  function data() { return getAll().filter(r => r && r.title); }
-  function list(items) {
-    return items.length ? `<div class="cs-mr-list">${items.map(r => `<div class="cs-mr-row"><div><button class="cs-mr-title" data-k="${esc(String(r.bookId || legacyKey(r.title,r.author)))}" type="button">${esc(r.title)}</button><div class="cs-mr-author">${esc(r.author || "")}</div>${r.rating ? `<div class="cs-mr-stars">${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}</div>` : ""}</div><div class="cs-mr-badge">${esc((r.status || "").replaceAll("-", " "))}</div></div>`).join("")}</div>` : `<div class="cs-mr-card">Nothing here yet.</div>`;
+  function data(){return getAll().filter(r=>r&&r.title);}
+  function list(items){return items.length?`<div class="cs-mr-list">${items.map(r=>`<div class="cs-mr-row"><div><button class="cs-mr-title" data-k="${esc(String(r.bookId||legacyKey(r.title,r.author)))}" type="button">${esc(r.title)}</button><div class="cs-mr-author">${esc(r.author||"")}</div>${r.rating?`<div class="cs-mr-stars">${"★".repeat(Number(r.rating))}${"☆".repeat(5-Number(r.rating))}</div>`:""}</div><div class="cs-mr-badge">${esc((r.status||"").replaceAll("-"," "))}</div></div>`).join("")}</div>`:`<div class="cs-mr-card">Nothing here yet.</div>`;}
+  function render(){
+    const root=document.getElementById("cs-my-reading"),body=root?.querySelector(".cs-mr-body");if(!body)return;
+    const d=data(),tab=root.dataset.tab||"overview",read=d.filter(r=>r.status==="read"),cur=d.filter(r=>r.status==="currently-reading"),want=d.filter(r=>r.status==="want-to-read"),dnf=d.filter(r=>r.status==="dnf");
+    root.querySelectorAll(".cs-mr-tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+    if(tab==="overview"){const rated=read.filter(r=>r.rating),avg=rated.length?(rated.reduce((a,r)=>a+Number(r.rating),0)/rated.length).toFixed(1):"—";body.innerHTML=`<div class="cs-mr-stats"><div class="cs-mr-stat"><b>${read.length}</b><span>Read</span></div><div class="cs-mr-stat"><b>${cur.length}</b><span>Reading</span></div><div class="cs-mr-stat"><b>${want.length}</b><span>Want to Read</span></div><div class="cs-mr-stat"><b>${dnf.length}</b><span>DNF</span></div></div><div class="cs-mr-card"><b>Personal rating average</b><p>${avg}/5${rated.length?` from ${rated.length} rated book${rated.length===1?"":"s"}.`:" — rate books to build your profile."}</p></div>${cur.length?`<div class="cs-mr-card"><b>Currently Reading</b>${list(cur.slice(0,5))}</div>`:""}`;}
+    else if(tab==="reading")body.innerHTML=list(cur);else if(tab==="read")body.innerHTML=list(read);else if(tab==="history")body.innerHTML=list(d.filter(r=>r.startedAt||r.finishedAt||r.dnfAt));else if(tab==="want")body.innerHTML=list(want);else body.innerHTML=list(dnf);
   }
-  function render() {
-    const root = document.getElementById("cs-my-reading"), body = root?.querySelector(".cs-mr-body"); if (!body) return;
-    const d = data(), tab = root.dataset.tab || "overview";
-    const read = d.filter(r => r.status === "read"), cur = d.filter(r => r.status === "currently-reading"), want = d.filter(r => r.status === "want-to-read"), dnf = d.filter(r => r.status === "dnf");
-    root.querySelectorAll(".cs-mr-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
-    if (tab === "overview") {
-      const rated = read.filter(r => r.rating), avg = rated.length ? (rated.reduce((a,r) => a + Number(r.rating), 0) / rated.length).toFixed(1) : "—";
-      body.innerHTML = `<div class="cs-mr-stats"><div class="cs-mr-stat"><b>${read.length}</b><span>Read</span></div><div class="cs-mr-stat"><b>${cur.length}</b><span>Reading</span></div><div class="cs-mr-stat"><b>${want.length}</b><span>Want to Read</span></div><div class="cs-mr-stat"><b>${dnf.length}</b><span>DNF</span></div></div><div class="cs-mr-card"><b>Personal rating average</b><p>${avg}/5${rated.length ? ` from ${rated.length} rated book${rated.length === 1 ? "" : "s"}.` : " — rate books to build your profile."}</p></div>${cur.length ? `<div class="cs-mr-card"><b>Currently Reading</b>${list(cur.slice(0,5))}</div>` : ""}`;
-    } else if (tab === "reading") body.innerHTML = list(cur);
-    else if (tab === "read") body.innerHTML = list(read);
-    else if (tab === "history") body.innerHTML = list(d.filter(r => r.startedAt || r.finishedAt || r.dnfAt));
-    else if (tab === "want") body.innerHTML = list(want);
-    else body.innerHTML = list(dnf);
+  function findRecord(identifier){const d=data();return d.find(r=>String(r.bookId||"")===String(identifier))||d.find(r=>legacyKey(r.title,r.author)===identifier);}
+  function detail(identifier){
+    const r=findRecord(identifier);if(!r)return;
+    const modal=document.getElementById("cs-my-reading").querySelector(".cs-mr-detail"),box=modal.querySelector(".cs-mr-detail-box");
+    box.innerHTML=`<h3>${esc(r.title)}</h3><p>${esc(r.author||"")}</p><span class="cs-mr-label">Your Rating</span><div class="cs-mr-rating">${[1,2,3,4,5].map(n=>`<button type="button" data-rate="${n}" class="${n<=(r.rating||0)?"on":""}">${n<=(r.rating||0)?"★":"☆"}</button>`).join("")}</div><span class="cs-mr-label">Reading Status</span><div class="cs-mr-actions">${[["want-to-read","Want to Read"],["currently-reading","Currently Reading"],["read","Read"],["dnf","DNF"]].map(([status,label])=>`<button class="cs-mr-btn ${r.status===status?"active":""}" data-status="${status}" type="button">${label}</button>`).join("")}</div><div class="cs-mr-actions"><button class="cs-mr-btn" data-close type="button">Close</button></div>`;
+    box.querySelectorAll("[data-rate]").forEach(button=>button.onclick=()=>{const rating=Number(button.dataset.rate);renderDetailRating(box,rating);if(r.bookId)store().setRating(r.bookId,rating,{title:r.title,author:r.author});render();});
+    box.querySelectorAll("[data-status]").forEach(button=>button.onclick=()=>{const status=button.dataset.status;if(r.bookId)store().setStatus(r.bookId,status,{title:r.title,author:r.author});detail(identifier);render();});
+    box.querySelector("[data-close]").onclick=closeDetail;modal.classList.add("open");
   }
-  function findRecord(identifier) {
-    return data().find(r => String(r.bookId || "") === String(identifier)) || data().find(r => legacyKey(r.title,r.author) === identifier);
-  }
-  function detail(identifier) {
-    const r = findRecord(identifier); if (!r) return;
-    const modal = document.getElementById("cs-my-reading").querySelector(".cs-mr-detail"), box = modal.querySelector(".cs-mr-detail-box");
-    box.innerHTML = `<h3>${esc(r.title)}</h3><p>${esc(r.author || "")}</p><span class="cs-mr-label">Your Rating</span><div class="cs-mr-rating">${[1,2,3,4,5].map(n => `<button type="button" data-rate="${n}" class="${n <= (r.rating || 0) ? "on" : ""}">${n <= (r.rating || 0) ? "★" : "☆"}</button>`).join("")}</div><span class="cs-mr-label">Reading Status</span><div class="cs-mr-actions">${[["want-to-read","Want to Read"],["currently-reading","Currently Reading"],["read","Read"],["dnf","DNF"]].map(([status,label]) => `<button class="cs-mr-btn ${r.status === status ? "active" : ""}" data-status="${status}" type="button">${label}</button>`).join("")}</div><div class="cs-mr-actions"><button class="cs-mr-btn" data-close type="button">Close</button></div>`;
-    box.querySelectorAll("[data-rate]").forEach(button => button.onclick = () => {
-      const rating = Number(button.dataset.rate); renderDetailRating(box, rating);
-      if (r.bookId && store()?.setRating) store().setRating(r.bookId, rating, r); else { r.rating = rating; const h = json(HISTORY); h[legacyKey(r.title,r.author)] = r; save(HISTORY,h); }
-      render();
-    });
-    box.querySelectorAll("[data-status]").forEach(button => button.onclick = () => {
-      const status = button.dataset.status;
-      if (r.bookId && store()?.setStatus) store().setStatus(r.bookId, status, r); else { r.status = status; const h = json(HISTORY); h[legacyKey(r.title,r.author)] = r; save(HISTORY,h); }
-      detail(identifier); render();
-    });
-    box.querySelector("[data-close]").onclick = closeDetail;
-    modal.classList.add("open");
-  }
-  function renderDetailRating(box, rating) { box.querySelectorAll("[data-rate]").forEach(b => { const on = Number(b.dataset.rate) <= rating; b.classList.toggle("on", on); b.textContent = on ? "★" : "☆"; }); }
-  function closeDetail() { document.querySelector("#cs-my-reading .cs-mr-detail")?.classList.remove("open"); }
-  function close() { document.getElementById("cs-my-reading")?.classList.remove("open"); closeDetail(); }
-  function open() { ensure(); const root = document.getElementById("cs-my-reading"); root.dataset.tab = root.dataset.tab || "overview"; root.classList.add("open"); render(); }
-  window.CrossoverShelfMyReading = { open, close };
-  document.addEventListener("crossoverShelfOpenMyReading", open);
-  window.addEventListener("crossoverShelfPersonalRatingChanged", render);
-  window.addEventListener("crossover-shelf-reading-synced", render);
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ensure, { once: true }); else ensure();
+  function renderDetailRating(box,rating){box.querySelectorAll("[data-rate]").forEach(b=>{const on=Number(b.dataset.rate)<=rating;b.classList.toggle("on",on);b.textContent=on?"★":"☆";});}
+  function closeDetail(){document.querySelector("#cs-my-reading .cs-mr-detail")?.classList.remove("open");}
+  function close(){document.getElementById("cs-my-reading")?.classList.remove("open");closeDetail();}
+  function open(){ensure();const root=document.getElementById("cs-my-reading");root.dataset.tab=root.dataset.tab||"overview";root.classList.add("open");render();}
+  window.CrossoverShelfMyReading={open,close};
+  document.addEventListener("crossoverShelfOpenMyReading",open);
+  window.addEventListener("crossoverShelfPersonalRatingChanged",render);
+  window.addEventListener("crossover-shelf-reading-synced",render);
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",ensure,{once:true});else ensure();
 })();
