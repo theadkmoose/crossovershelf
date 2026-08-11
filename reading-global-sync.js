@@ -111,16 +111,17 @@
     if (!readButton || !visible(readButton)) return;
     const host = readButton.parentElement;
     if (!host) return;
-    let root = host;
-    for (let i = 0; i < 10 && root; i++, root = root.parentElement) {
-      if (findTitle(root)) break;
-    }
     const title = findTitle(host);
     if (!title) return;
     const author = findAuthor(host);
     const identity = keyFor(title, author);
-    const old = [...document.querySelectorAll(".cs-rating-box")].find(b => b.dataset.bookKey === identity);
-    if (old) return;
+
+    // Only allow one rating box for the currently rendered book.
+    const existing = [...document.querySelectorAll(".cs-rating-box")];
+    existing.forEach(box => {
+      if (box.dataset.bookKey !== identity) box.remove();
+    });
+    if (document.querySelector(`.cs-rating-box[data-book-key="${CSS.escape(identity)}"]`)) return;
 
     const { record } = recordFor(title, author);
     const box = document.createElement("div");
@@ -128,9 +129,6 @@
     box.dataset.bookKey = identity;
     box.innerHTML = `<span class="cs-rating-label">Your rating</span><div class="cs-rating-row" role="radiogroup" aria-label="Your rating"></div>`;
     const row = box.querySelector(".cs-rating-row");
-    const value = document.createElement("span");
-    value.className = "cs-rating-value";
-    row.appendChild(value);
 
     for (let n = 1; n <= 5; n++) {
       const star = document.createElement("button");
@@ -140,42 +138,41 @@
       star.setAttribute("aria-label", `${n} out of 5 stars`);
       star.addEventListener("click", e => {
         e.preventDefault();
-        e.stopImmediatePropagation();
+        e.stopPropagation();
         const chosen = Number(star.dataset.rating);
+        // Paint the selection first so the user sees it immediately.
         render(box, chosen);
         saveRating(title, author, chosen);
-      }, true);
-      row.insertBefore(star, value);
+      });
+      row.appendChild(star);
     }
+
+    const value = document.createElement("span");
+    value.className = "cs-rating-value";
+    row.appendChild(value);
     render(box, Number(record.rating) || 0);
 
-    const rowParent = host.parentElement;
-    if (rowParent) rowParent.insertBefore(box, host.nextSibling);
-    else host.appendChild(box);
+    host.parentElement?.insertBefore(box, host.nextSibling);
+  }
+
+  function scheduleRating(button) {
+    [50, 150, 300].forEach(delay => setTimeout(() => {
+      const candidates = readButtons();
+      const current = candidates[0] || button;
+      if (visible(current)) insertRating(current);
+    }, delay));
   }
 
   function onReadClick(e) {
     const button = e.target?.closest?.("button");
     if (!button || !visible(button) || clean(button.textContent).toLowerCase() !== "read") return;
-    [60, 180, 400].forEach(delay => setTimeout(() => {
-      const current = readButtons()[0] || button;
-      insertRating(current);
-    }, delay));
+    scheduleRating(button);
   }
 
   function init() {
     injectStyle();
     document.addEventListener("click", onReadClick, true);
     setTimeout(() => readButtons().forEach(insertRating), 150);
-    const observer = new MutationObserver(() => {
-      const buttons = readButtons();
-      if (buttons.length) {
-        const selected = buttons.find(b => b.matches(".active,[aria-pressed='true'],[aria-selected='true']")) || buttons[0];
-        const text = clean(selected.textContent).toLowerCase();
-        if (text === "read") insertRating(selected);
-      }
-    });
-    observer.observe(document.body, {childList:true, subtree:true});
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, {once:true});
