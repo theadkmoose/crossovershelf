@@ -16,12 +16,7 @@
   };
   const loadPrevious = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (_) { return null; } };
   const saveCurrent = list => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({
-        savedAt: Date.now(),
-        positions: Object.fromEntries(list.map((b, i) => [String(b.id), { rank: i + 1, title: b.title }]))
-      }));
-    } catch (_) {}
+    try { localStorage.setItem(KEY, JSON.stringify({ savedAt: Date.now(), positions: Object.fromEntries(list.map((b, i) => [String(b.id), { rank: i + 1, title: b.title }])) })); } catch (_) {}
   };
   const card = () => {
     let el = document.getElementById("rfRankMovement");
@@ -66,10 +61,7 @@
     up.sort((a,b)=>b.delta-a.delta); down.sort((a,b)=>a.delta-b.delta); stable.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)); fresh.sort((a,b)=>a.now-b.now);
     const row = (x, cls, symbol, suffix) => `<li class="rf-movement-row ${cls}"><span class="stat-rank">${symbol}</span><span class="rf-movement-title">${esc(x.b.title)}</span><span class="stat-val">${suffix}</span></li>`;
     const section = (title, rows) => rows.length ? `<div class="rf-movement-group"><div class="rf-movement-label">${title}</div><ul>${rows.slice(0,5).join("")}</ul></div>` : "";
-    const html = section("↑ Moved Up", up.map(x=>row(x,"up","↑",`+${x.delta}`))) +
-      section("↓ Moved Down", down.map(x=>row(x,"down","↓",`${x.delta}`))) +
-      section("✦ New Entries", fresh.map(x=>row(x,"new","NEW",`#${x.now}`))) +
-      section("＝ Stable", stable.map(x=>row(x,"stable","＝",x.delta===0?"No change":"±1")));
+    const html = section("↑ Moved Up", up.map(x=>row(x,"up","↑",`+${x.delta}`))) + section("↓ Moved Down", down.map(x=>row(x,"down","↓",`${x.delta}`))) + section("✦ New Entries", fresh.map(x=>row(x,"new","NEW",`#${x.now}`))) + section("＝ Stable", stable.map(x=>row(x,"stable","＝",x.delta===0?"No change":"±1")));
     list.innerHTML = html || `<div class="rf-empty">No meaningful movement since the previous snapshot.</div>`;
     saveCurrent(current);
   };
@@ -79,8 +71,18 @@
     s.textContent = `.rf-rank-movement{margin-top:12px}.rf-rank-movement .stat-list{padding-top:4px}.rf-movement-group{margin:7px 0 12px}.rf-movement-label{font:600 .65rem 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--text-dim);text-transform:uppercase;margin:0 0 5px}.rf-movement-group ul{list-style:none;margin:0;padding:0}.rf-movement-row{display:flex;align-items:center;gap:8px;min-height:30px}.rf-movement-row .stat-rank{min-width:30px}.rf-movement-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rf-movement-row.up .stat-val{color:var(--brass)}.rf-movement-row.down .stat-val{color:var(--text-dim)}.rf-movement-row.new .stat-rank{font-size:.58rem;color:var(--brass)}.rf-movement-row.stable .stat-val{color:var(--text-dim)}.rf-empty{color:var(--text-dim);font-size:.82rem;line-height:1.45;padding:4px 0 8px}`;
     document.head.appendChild(s);
   };
-  const boot = () => { injectStyle(); render(); document.addEventListener("click", e => { if (e.target.closest(".tab-btn,.bottom-nav button")) setTimeout(render, 0); }); };
+  const scheduleRender = () => setTimeout(render, 50);
+  const boot = () => {
+    injectStyle();
+    scheduleRender();
+    document.addEventListener("click", e => {
+      if (e.target.closest(".tab-btn,.bottom-nav button")) scheduleRender();
+    });
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (document.querySelector(".stats-row")) { render(); clearInterval(timer); }
+      else if (++tries > 30) clearInterval(timer);
+    }, 100);
+  };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once:true }); else boot();
-  const observer = new MutationObserver(() => { if (document.querySelector(".stats-row")) render(); });
-  observer.observe(document.documentElement, { childList:true, subtree:true });
 })();
