@@ -1,78 +1,48 @@
-/* Crossover Shelf — global reading-history bridge
- * Imports the main app's reading statuses from every built-in/custom shelf
- * into the personal My Reading history store without depending on visible cards.
+/* Crossover Shelf — legacy compatibility bridge
+ *
+ * Reading state is owned by CrossoverShelfReadingStore.
+ * This file no longer writes the history store or schedules polling.
+ * It only imports the app's existing status map through the store when
+ * the store is available, preserving compatibility with the main app.
  */
 (() => {
   "use strict";
 
-  const HISTORY_KEY = "crossoverShelfReadingHistoryV1";
   const STATUS_KEY = "crossover-shelf-status-v1";
+  const SYNC_EVENT = "crossover-shelf-reading-synced";
 
-  const keyFor = (title, author = "") =>
-    `${String(title || "").trim().toLowerCase()}::${String(author || "").replace(/^by\s+/i, "").trim().toLowerCase()}`;
-
-  function load(key) {
-    try { return JSON.parse(localStorage.getItem(key) || "{}"); }
+  function loadStatus() {
+    try { return JSON.parse(localStorage.getItem(STATUS_KEY) || "{}"); }
     catch (_) { return {}; }
   }
 
-  function save(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); }
-    catch (_) {}
-  }
-
-  function sync() {
+  function syncThroughStore() {
+    const store = window.CrossoverShelfReadingStore;
     const books = Array.isArray(window.CrossoverShelfBooks) ? window.CrossoverShelfBooks : [];
-    const appStatus = load(STATUS_KEY);
-    const history = load(HISTORY_KEY);
-    let changed = false;
+    if (!store?.setStatus || !books.length) return false;
 
+    const statuses = loadStatus();
     books.forEach(book => {
-      if (!book || !book.title) return;
-      const status = appStatus[book.id];
+      if (!book?.id) return;
+      const status = statuses[book.id];
       if (!status || status === "unread") return;
-
-      const key = keyFor(book.title, book.author);
-      const existing = history[key] || {
-        title: book.title,
-        author: book.author || "",
-        createdAt: new Date().toISOString()
-      };
-
-      const normalized = status === "read" ? "read"
-        : status === "want" ? "want-to-read"
-        : status === "currently-reading" ? "currently-reading"
-        : status === "dnf" ? "dnf"
-        : null;
-
-      if (!normalized) return;
-
-      if (existing.status !== normalized) {
-        existing.status = normalized;
-        changed = true;
-      }
-      if (normalized === "currently-reading" && !existing.startedAt) {
-        existing.startedAt = new Date().toISOString();
-        changed = true;
-      }
-      if (normalized === "read" && !existing.finishedAt) {
-        const meta = load("crossover-shelf-book-meta-v1")[book.id];
-        existing.finishedAt = meta?.finished || null;
-        changed = true;
-      }
-      if (normalized === "dnf" && !existing.dnfAt) {
-        existing.dnfAt = new Date().toISOString();
-        changed = true;
-      }
-
-      history[key] = existing;
+      store.setStatus(book.id, status, { title: book.title || "", author: book.author || "" });
     });
-
-    if (changed) save(HISTORY_KEY, history);
-    window.dispatchEvent(new CustomEvent("crossover-shelf-reading-synced"));
+    window.dispatchEvent(new CustomEvent(SYNC_EVENT));
+    return true;
   }
 
-  sync();
-  setTimeout(sync, 1000);
-  setTimeout(sync, 3000);
+  function init() {
+    // The reading store should normally already be loaded. If script order
+    // changes, retry once at DOMContentLoaded rather than polling.
+    if (!syncThroughStore()) {
+      document.addEventListener("DOMContentLoaded", syncThroughStore, { once: true });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
 })();
