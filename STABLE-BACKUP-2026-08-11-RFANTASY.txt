@@ -1,1 +1,0 @@
-Stable production baseline marker for the final r/Fantasy implementation work on 2026-08-11. No application code changed by this commit.
