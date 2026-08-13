@@ -50,8 +50,14 @@
   function removeLiteraryBridge(){document.querySelectorAll(".hero .bridge").forEach(el=>el.remove())}
   function boot(){
     installStyle();ensureMenuStats();removeLiteraryBridge();updateMenuStats();syncKingToggle();
-    document.addEventListener("click",e=>{if(e.target.closest(".tab-btn")){setTimeout(()=>{removeLiteraryBridge();updateMenuStats();syncKingToggle()},0)}},true);
-    let tries=0;const timer=setInterval(()=>{ensureMenuStats();removeLiteraryBridge();updateMenuStats();syncKingToggle();if(++tries>100)clearInterval(timer)},100);
+    document.addEventListener("click",e=>{
+      if(e.target.closest("#cs-menu-button")){
+        setTimeout(()=>{ensureMenuStats();updateMenuStats()},0);
+      }
+      if(e.target.closest(".tab-btn")){
+        setTimeout(()=>{removeLiteraryBridge();updateMenuStats();syncKingToggle()},0);
+      }
+    },true);
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
 })();
