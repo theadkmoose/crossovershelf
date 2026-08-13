@@ -48,10 +48,11 @@
     else{document.body.classList.remove("cs-king-stats-collapsed");toggle.dataset.initialized=""}
   }
   function removeLiteraryBridge(){document.querySelectorAll(".hero .bridge").forEach(el=>el.remove())}
+  function refresh(){ensureMenuStats();removeLiteraryBridge();updateMenuStats();syncKingToggle()}
   function boot(){
-    installStyle();ensureMenuStats();removeLiteraryBridge();updateMenuStats();syncKingToggle();
-    document.addEventListener("click",e=>{if(e.target.closest(".tab-btn")){setTimeout(()=>{removeLiteraryBridge();updateMenuStats();syncKingToggle()},0)}},true);
-    let tries=0;const timer=setInterval(()=>{ensureMenuStats();removeLiteraryBridge();updateMenuStats();syncKingToggle();if(++tries>100)clearInterval(timer)},100);
+    installStyle();refresh();
+    document.addEventListener("click",e=>{if(e.target.closest(".tab-btn"))setTimeout(refresh,0)},true);
+    document.addEventListener("crossoverShelfUIRefresh",refresh);
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
 })();
