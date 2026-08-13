@@ -8,6 +8,10 @@
     window.renderStats(books.filter(b=>b.tab===active));
     return true;
   };
-  let tries=0;
-  const timer=setInterval(()=>{if(run()||++tries>40)clearInterval(timer)},100);
+  const boot=()=>{
+    run();
+    document.addEventListener("click",e=>{if(e.target.closest(".tab-btn"))setTimeout(run,0)},true);
+    document.addEventListener("crossoverShelfStatsReady",run);
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
 })();
