@@ -1,5 +1,5 @@
 // Crossover Shelf — stable core + unified My Reading + AI + shell controls
-const CACHE_VERSION = "v25-rank-movement";
+const CACHE_VERSION = "v26-ui-enhancements";
 const SHELL_CACHE = `crossover-shelf-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `crossover-shelf-runtime-${CACHE_VERSION}`;
 const MY_READING = "./my-reading.js?v=24";
@@ -7,12 +7,13 @@ const AI = "./ai-recommendations.js?v=24";
 const SHELL_CONTROLS = "./shell-controls.js?v=24";
 const STATS_INIT = "./stats-enhancement-init.js?v=24";
 const RANK_MOVEMENT = "./rank-movement.js?v=25";
-const CORE_ASSETS = ["./","./index.html","./my-reading.js","./ai-recommendations.js","./shell-controls.js","./stats-enhancement-init.js","./rank-movement.js","./manifest.webmanifest","./icon-180.png","./icon-192.png","./icon-512.png"];
+const UI_ENHANCEMENTS = "./ui-enhancements-v1.js?v=1";
+const CORE_ASSETS = ["./","./index.html","./my-reading.js","./ai-recommendations.js","./shell-controls.js","./stats-enhancement-init.js","./rank-movement.js","./ui-enhancements-v1.js","./manifest.webmanifest","./icon-180.png","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",event=>event.waitUntil(caches.open(SHELL_CACHE).then(c=>c.addAll(CORE_ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith("crossover-shelf-")&&k!==SHELL_CACHE&&k!==RUNTIME_CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 function runtime(url){return url.hostname==="fonts.googleapis.com"||url.hostname==="fonts.gstatic.com"||url.hostname==="covers.openlibrary.org"||url.hostname==="openlibrary.org";}
 async function injectModules(response){
- if(!response||!response.ok)return response;const type=response.headers.get("content-type")||"";if(!type.includes("text/html"))return response;const html=await response.clone().text();const marker="<!-- crossover-shelf-enhancements-v25-rank-movement -->";if(html.includes(marker))return response;
- const injected=html.replace(/<\/body>/i,`${marker}<script>try{window.CrossoverShelfBooks=BOOKS}catch(e){}</script><script src="${AI}" defer></script><script src="${MY_READING}" defer></script><script src="${SHELL_CONTROLS}" defer></script><script src="${STATS_INIT}" defer></script><script src="${RANK_MOVEMENT}" defer></script></body>`);const headers=new Headers(response.headers);headers.set("content-type","text/html; charset=utf-8");headers.delete("content-length");return new Response(injected,{status:response.status,statusText:response.statusText,headers});
+ if(!response||!response.ok)return response;const type=response.headers.get("content-type")||"";if(!type.includes("text/html"))return response;const html=await response.clone().text();const marker="<!-- crossover-shelf-enhancements-v26-ui -->";if(html.includes(marker))return response;
+ const injected=html.replace(/<\/body>/i,`${marker}<script>try{window.CrossoverShelfBooks=BOOKS}catch(e){}</script><script src="${AI}" defer></script><script src="${MY_READING}" defer></script><script src="${SHELL_CONTROLS}" defer></script><script src="${STATS_INIT}" defer></script><script src="${RANK_MOVEMENT}" defer></script><script src="${UI_ENHANCEMENTS}" defer></script></body>`);const headers=new Headers(response.headers);headers.set("content-type","text/html; charset=utf-8");headers.delete("content-length");return new Response(injected,{status:response.status,statusText:response.statusText,headers});
 }
 self.addEventListener("fetch",event=>{const req=event.request;if(req.method!=="GET")return;const url=new URL(req.url);if(url.origin===self.location.origin){const doc=url.pathname.endsWith("/")||url.pathname.endsWith("/index.html");event.respondWith((async()=>{try{const fresh=await fetch(req,{cache:"no-store"});if(fresh.ok){const copy=fresh.clone();caches.open(SHELL_CACHE).then(c=>c.put(req,copy));return doc?injectModules(fresh):fresh}}catch(_){}const cached=await caches.match(req);if(cached)return doc?injectModules(cached):cached;const fallback=await caches.match("./index.html");return doc?injectModules(fallback):fallback})());return}if(runtime(url))event.respondWith((async()=>{const cache=await caches.open(RUNTIME_CACHE);try{const fresh=await fetch(req);if(fresh.ok)cache.put(req,fresh.clone());return fresh}catch(_){return cache.match(req)}})())});
